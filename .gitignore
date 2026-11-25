@@ -3,7 +3,12 @@ extracted/
 unpacked/
 SSLinux.gpr
 SSLinux.rep/
+ghidra_work/
 SS_V5.0.539.001_W6R.exe
+*.exe
+*.msi
+*.dll
+*.tsv
 
 # Build output
 target/
