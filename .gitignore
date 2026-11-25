@@ -7,6 +7,9 @@ SS_V5.0.539.001_W6R.exe
 
 # Build output
 target/
+packaging/src/
+packaging/pkg/
+packaging/*.pkg.tar.*
 
 # Editor / OS noise
 *.swp

@@ -15,6 +15,10 @@ sha256sums=()
 # The package builds from this repository checkout (parent of packaging/).
 _srcroot="$startdir/.."
 
+# NOTE: makepkg's injected RUSTFLAGS (--remap-path-prefix) break when the build
+# directory path contains spaces. If this checkout's path has spaces, build with
+# a space-free BUILDDIR, e.g.:  BUILDDIR=/tmp/makepkg-ss makepkg -si
+
 prepare() {
     cd "$_srcroot"
     cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
