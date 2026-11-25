@@ -15,9 +15,9 @@
 //! look like block headers, so every candidate offset is tried and a record is accepted only
 //! when its P block parses as a path that consumes the block exactly.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
-use ss_geom::{Affine, BezPath, Point};
+use ss_geom::{Affine, BezPath, Point, Vec2};
 
 pub const MAGIC_V4: &[u8; 13] = b"silhouette04;";
 pub const MAGIC_V5: &[u8; 13] = b"silhouette05;";
@@ -109,7 +109,117 @@ pub struct StudioShape {
     pub cut_id: Option<String>,
     pub fill: Option<StudioFill>,
     pub layer_name: Option<String>,
+    /// Matrices stored after a pattern-fill reference, see [`PatternMatrices`].
+    pub pattern: Option<PatternMatrices>,
 }
+
+/// The two row-major 3×3 matrices stored after a pattern reference in block A.
+///
+/// `uv` stretches the image over the bounding box of the local outline
+/// (`[w/width_px, 0, x0; 0, h/height_px, y0]`); `adjust` holds the user's pattern scale and
+/// rotation. Checked against Silhouette Studio's own SVG export, the tile drawn is the image scaled
+/// uniformly by `max(uv[0], uv[4])`, flipped vertically, transformed by `adjust` and centred on
+/// that bounding box.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PatternMatrices {
+    /// Tiled pattern; otherwise a picture stretched by `uv` alone (clipped to the outline).
+    pub tiled: bool,
+    pub uv: [f32; 9],
+    pub adjust: [f32; 9],
+}
+
+impl PatternMatrices {
+    /// Maps image pixels to the shape's local coordinates.
+    pub fn local_affine(&self, width_px: u32, height_px: u32) -> Affine {
+        let u = self.uv.map(f64::from);
+        let a = self.adjust.map(f64::from);
+        if !self.tiled {
+            return Affine::new([u[0], u[3], u[1], u[4], u[2], u[5]]);
+        }
+        let (w, h) = (f64::from(width_px), f64::from(height_px));
+        let centre = Vec2::new(u[2] + u[0] * w / 2.0, u[5] + u[4] * h / 2.0);
+        let adjust = Affine::new([a[0], a[3], a[1], a[4], 0.0, 0.0]);
+        Affine::translate(centre)
+            * Affine::scale(u[0].max(u[4]))
+            * Affine::FLIP_Y
+            * adjust
+            * Affine::translate(Vec2::new(-w / 2.0, -h / 2.0))
+    }
+}
+
+/// Reads [`PatternMatrices`] after the reference to `id`:
+/// `id, 10 bytes, tiled u8, 00 08 00 04, 3 f32, 3 bytes, 01, adjust[9], 01, uv[9]`.
+fn parse_pattern_matrices(a: &[u8], id: &str) -> Option<PatternMatrices> {
+    let at = a.windows(id.len()).position(|w| w == id.as_bytes())? + id.len();
+    let q = at + 10;
+    let tiled = match *a.get(q)? {
+        0 => false,
+        1 => true,
+        _ => return None,
+    };
+    if a.get(q + 1..q + 5)? != [0, 8, 0, 4] || *a.get(q + 20)? != 1 || *a.get(q + 57)? != 1 {
+        return None;
+    }
+    let mats = |o: usize| -> Option<[f32; 9]> {
+        let mut c = Cur::new(a, o);
+        let mut m = [0f32; 9];
+        for v in &mut m {
+            *v = c.f32()?;
+        }
+        (m.iter().all(|v| v.is_finite()) && m[6] == 0.0 && m[7] == 0.0 && m[8] == 1.0).then_some(m)
+    };
+    let adjust = mats(q + 21)?;
+    let uv = mats(q + 58)?;
+    (uv[0] > 0.0 && uv[4] > 0.0 && uv[1] == 0.0 && uv[3] == 0.0).then_some(PatternMatrices { tiled, uv, adjust })
+}
+
+/// Least-squares affine map taking `local` onto `page` (paired points); `None` when degenerate.
+fn fit_affine(local: &[StudioSubpath], page: &[StudioSubpath]) -> Option<Affine> {
+    let pts = |s: &[StudioSubpath]| s.iter().flat_map(|p| p.points.iter().map(|q| (f64::from(q.x), f64::from(q.y)))).collect::<Vec<_>>();
+    let (l, p) = (pts(local), pts(page));
+    if l.len() != p.len() || l.len() < 3 {
+        return None;
+    }
+    // Centre both point sets to keep the normal equations well conditioned.
+    let mean = |v: &[(f64, f64)]| {
+        let n = v.len() as f64;
+        v.iter().fold((0.0, 0.0), |a, q| (a.0 + q.0 / n, a.1 + q.1 / n))
+    };
+    let (lm, pm) = (mean(&l), mean(&p));
+    let (mut sxx, mut sxy, mut syy) = (0.0, 0.0, 0.0);
+    let (mut ux, mut vx, mut uy, mut vy) = (0.0, 0.0, 0.0, 0.0);
+    for (a, b) in l.iter().zip(&p) {
+        let (x, y) = (a.0 - lm.0, a.1 - lm.1);
+        let (u, v) = (b.0 - pm.0, b.1 - pm.1);
+        sxx += x * x;
+        sxy += x * y;
+        syy += y * y;
+        ux += u * x;
+        uy += u * y;
+        vx += v * x;
+        vy += v * y;
+    }
+    let det = sxx * syy - sxy * sxy;
+    if det.abs() < 1e-12 * (sxx * syy).max(1e-300) {
+        return None;
+    }
+    let a = (ux * syy - uy * sxy) / det;
+    let c = (uy * sxx - ux * sxy) / det;
+    let b = (vx * syy - vy * sxy) / det;
+    let d = (vy * sxx - vx * sxy) / det;
+    let lin = Affine::new([a, b, c, d, 0.0, 0.0]);
+    let m = Affine::translate(Point::new(pm.0, pm.1) - lin * Point::new(lm.0, lm.1)) * lin;
+    let worst = l.iter().zip(&p).map(|(a, b)| (m * Point::new(a.0, a.1)).distance(Point::new(b.0, b.1))).fold(0.0, f64::max);
+    (worst < 0.05).then_some(m)
+}
+
+/// Exact pattern placement: image pixels to page millimetres, as Silhouette Studio draws it.
+pub fn pattern_affine(s: &StudioShape, img: &StudioImage) -> Option<Affine> {
+    let mats = s.pattern?;
+    let local = s.image_fill.as_ref()?.local.as_deref()?;
+    Some(fit_affine(local, &s.outline)? * mats.local_affine(img.width_px, img.height_px))
+}
+
 impl StudioShape {
     pub fn is_empty(&self) -> bool {
         self.outline.iter().all(|s| s.points.is_empty())
@@ -486,8 +596,10 @@ fn page_size(doc: &[u8]) -> Option<(f32, f32)> {
 
 /// Decodes every shape record of a document section.
 pub fn parse_document(doc: &[u8]) -> (Vec<StudioShape>, usize) {
-    let mut shapes = Vec::new();
-    let mut seen_p: HashSet<usize> = HashSet::new();
+    let mut shapes: Vec<StudioShape> = Vec::new();
+    // P offset -> index into `shapes` (None for empty records).
+    let mut seen_p: HashMap<usize, Option<usize>> = HashMap::new();
+    let has_props = |a: (usize, usize)| a.1 - a.0 < 64 * 1024 && parse_shape_props(&doc[a.0..a.1]).is_some();
     let mut empty = 0;
     for i in 1..doc.len().saturating_sub(5) {
         if doc[i] != 1 || doc[i - 1] != 0 {
@@ -495,7 +607,15 @@ pub fn parse_document(doc: &[u8]) -> (Vec<StudioShape>, usize) {
         }
         let Some((a_body, a_end)) = block_at(doc, i) else { continue };
         let p_off = a_end + TRANSFORM_LEN;
-        if seen_p.contains(&p_off) {
+        if let Some(prev) = seen_p.get(&p_off) {
+            // An enclosing block can end exactly where the shape's own block A ends; prefer the
+            // block that holds shape properties.
+            if let Some(s) = prev.map(|k| &mut shapes[k])
+                && has_props((a_body, a_end))
+                && !has_props(s.a_range)
+            {
+                s.a_range = (a_body, a_end);
+            }
             continue;
         }
         let Some((p_body, p_end)) = block_at(doc, p_off) else { continue };
@@ -516,7 +636,6 @@ pub fn parse_document(doc: &[u8]) -> (Vec<StudioShape>, usize) {
         for v in &mut matrix {
             *v = m.f32().unwrap_or(0.0);
         }
-        seen_p.insert(p_off);
         let shape = StudioShape {
             name,
             serial,
@@ -531,10 +650,13 @@ pub fn parse_document(doc: &[u8]) -> (Vec<StudioShape>, usize) {
             cut_id: None,
             fill: None,
             layer_name: None,
+            pattern: None,
         };
         if shape.is_empty() {
             empty += 1;
+            seen_p.insert(p_off, None);
         } else {
+            seen_p.insert(p_off, Some(shapes.len()));
             shapes.push(shape);
         }
     }
@@ -550,6 +672,9 @@ pub fn parse_document(doc: &[u8]) -> (Vec<StudioShape>, usize) {
                 s.stroke_width_mm = props.stroke_width_mm;
                 s.cut_id = props.cut_id;
                 s.fill = props.fill;
+            }
+            if let Some(StudioFill::Pattern(id)) = &s.fill {
+                s.pattern = parse_pattern_matrices(a, id);
             }
             s.layer_name = find_layer_name(a);
         }
@@ -834,6 +959,27 @@ pub fn placed_image(file: &StudioFile, s: &StudioShape) -> Option<(ss_doc::Image
     Some((data, m))
 }
 
+fn pattern_fill(s: &StudioShape, img: &StudioImage) -> ss_doc::PatternFill {
+    let transform = pattern_affine(s, img);
+    let (tw, th) = match transform {
+        Some(m) => {
+            let c = m.as_coeffs();
+            (c[0].hypot(c[1]) * f64::from(img.width_px), c[2].hypot(c[3]) * f64::from(img.height_px))
+        }
+        // Without stored matrices, assume 300 DPI clamped to a sensible range.
+        None => ((f64::from(img.width_px) * 25.4 / 300.0).clamp(15.0, 150.0), (f64::from(img.height_px) * 25.4 / 300.0).clamp(15.0, 150.0)),
+    };
+    ss_doc::PatternFill {
+        id: img.id.clone(),
+        encoded: img.png.clone(),
+        width_px: img.width_px,
+        height_px: img.height_px,
+        tile_width_mm: tw,
+        tile_height_mm: th,
+        transform: transform.map(|m| m.as_coeffs()),
+    }
+}
+
 fn map_cut_action(cut_id: Option<&str>) -> ss_doc::CutAction {
     use ss_doc::CutAction;
     match cut_id.map(str::to_ascii_lowercase).as_deref() {
@@ -850,7 +996,7 @@ fn map_cut_action(cut_id: Option<&str>) -> ss_doc::CutAction {
 pub fn to_document(file: &StudioFile) -> ss_doc::Document {
     use std::collections::HashMap;
 
-    use ss_doc::{Document, Layer, Object, PatternFill, Rgba};
+    use ss_doc::{Document, Layer, Object, Rgba};
     let mut doc = Document::default();
     if let Some((w, h)) = file.page_mm {
         doc.page = page_for_size(f64::from(w), f64::from(h));
@@ -870,7 +1016,9 @@ pub fn to_document(file: &StudioFile) -> ss_doc::Document {
             id
         });
         let name = s.name.clone().filter(|n| !n.trim().is_empty());
-        if let Some((img, m)) = placed_image(file, s) {
+        if s.pattern.is_none()
+            && let Some((img, m)) = placed_image(file, s)
+        {
             let mut o = Object::image(name.unwrap_or_else(|| "Image".into()), layer, img);
             o.transform = m;
             doc.objects.push(o);
@@ -906,35 +1054,20 @@ pub fn to_document(file: &StudioFile) -> ss_doc::Document {
             }
             Some(StudioFill::Pattern(pid)) => {
                 if let Some(img) = images_by_id.get(pid.as_str()) {
-                    // Default 300 DPI tile size in mm, clamped to a sensible range.
-                    let tw = (f64::from(img.width_px) * 25.4 / 300.0).clamp(15.0, 150.0);
-                    let th = (f64::from(img.height_px) * 25.4 / 300.0).clamp(15.0, 150.0);
-                    o.style.fill_pattern = Some(Box::new(PatternFill {
-                        id: img.id.clone(),
-                        encoded: img.png.clone(),
-                        width_px: img.width_px,
-                        height_px: img.height_px,
-                        tile_width_mm: tw,
-                        tile_height_mm: th,
-                    }));
+                    o.style.fill_pattern = Some(Box::new(pattern_fill(s, img)));
                 }
             }
             None => {
                 if let Some(img_fill) = &s.image_fill
                     && let Some(img) = images_by_id.get(img_fill.image_id.as_str())
                 {
-                    let tw = (f64::from(img.width_px) * 25.4 / 300.0).clamp(15.0, 150.0);
-                    let th = (f64::from(img.height_px) * 25.4 / 300.0).clamp(15.0, 150.0);
-                    o.style.fill_pattern = Some(Box::new(PatternFill {
-                        id: img.id.clone(),
-                        encoded: img.png.clone(),
-                        width_px: img.width_px,
-                        height_px: img.height_px,
-                        tile_width_mm: tw,
-                        tile_height_mm: th,
-                    }));
+                    o.style.fill_pattern = Some(Box::new(pattern_fill(s, img)));
                 }
             }
+        }
+        if s.pattern.is_some_and(|p| !p.tiled) {
+            // Placed pictures are artwork, not cut lines.
+            o.cut = ss_doc::CutAction::NoCut;
         }
         doc.objects.push(o);
     }

@@ -72,6 +72,11 @@ pub struct PatternFill {
     pub height_px: u32,
     pub tile_width_mm: f64,
     pub tile_height_mm: f64,
+    /// Affine coefficients `[a, b, c, d, e, f]` mapping image pixels to the object's untransformed
+    /// coordinates (the tile repeats every `width_px` × `height_px`). When absent, tiles are
+    /// axis-aligned `tile_width_mm` × `tile_height_mm` from the origin.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transform: Option<[f64; 6]>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

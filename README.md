@@ -73,20 +73,76 @@ A Cargo workspace of small, individually testable crates:
 Reverse-engineering notes and the design proposal live in
 [`docs/`](docs/PHASE1_INVESTIGATION.md).
 
-## Installation (Arch Linux)
+## Installation
 
-### From the AUR-style PKGBUILD
+Silhouette Studio for Linux is built from source. It needs **Rust 1.88 or newer**
+and a few system libraries. Pick your distribution below, install the build
+dependencies, then run the installer.
+
+### 1. Install Rust
+
+Use [rustup](https://rustup.rs) (distribution Rust packages are often too old,
+especially on Debian and Ubuntu LTS):
+
+```sh
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+Open a new terminal afterwards so `cargo` is on your `PATH`.
+
+### 2. Install build dependencies
+
+| Distribution | Command |
+| --- | --- |
+| Debian, Ubuntu, Linux Mint, Pop!_OS, elementary, Zorin, Raspberry Pi OS | `sudo apt install build-essential pkg-config git libusb-1.0-0-dev libxkbcommon-dev libwayland-dev libxcb1-dev libgl1-mesa-dev xdg-desktop-portal` |
+| Fedora, Nobara, RHEL / Rocky / Alma (with EPEL) | `sudo dnf install gcc pkgconf-pkg-config git libusb1-devel libxkbcommon-devel wayland-devel libxcb-devel mesa-libGL-devel xdg-desktop-portal` |
+| openSUSE Tumbleweed / Leap | `sudo zypper install gcc pkgconf git libusb-1_0-devel libxkbcommon-devel wayland-devel libxcb-devel Mesa-libGL-devel xdg-desktop-portal` |
+| Arch, Manjaro, EndeavourOS, CachyOS | `sudo pacman -S --needed base-devel git libusb libxkbcommon wayland libxcb mesa xdg-desktop-portal` |
+| Void Linux | `sudo xbps-install base-devel pkg-config git libusb-devel libxkbcommon-devel wayland-devel libxcb-devel MesaLib-devel xdg-desktop-portal` |
+| Alpine Linux | `sudo apk add build-base pkgconf git libusb-dev libxkbcommon-dev wayland-dev libxcb-dev mesa-dev xdg-desktop-portal` |
+| Gentoo | `sudo emerge --ask dev-libs/libusb x11-libs/libxkbcommon dev-libs/wayland x11-libs/libxcb media-libs/mesa sys-apps/xdg-desktop-portal` |
+| NixOS / Nix | `nix-shell -p cargo rustc pkg-config libusb1 libxkbcommon wayland libxcb libGL` (run the build from inside this shell) |
+
+`xdg-desktop-portal` provides the Open/Save dialogs. Most desktops (GNOME, KDE,
+Xfce, Cinnamon) already have it installed.
+
+### 3. Build and install
+
+```sh
+git clone https://github.com/vineofthedead-sudo/silhouette-on-linux.git
+cd silhouette-on-linux
+sh packaging/install.sh
+```
+
+This builds the app, installs `silhouette-studio` and `ss-cli` to `/usr/local/bin`,
+adds the menu entry, icon and file associations, and installs the USB rule that
+lets you use a cutter without root. It asks for your password with `sudo`.
+Unplug and replug the cutter once afterwards.
+
+Other options:
+
+```sh
+sh packaging/install.sh --user        # install only for you, into ~/.local (no sudo)
+sh packaging/install.sh --prefix DIR  # install somewhere else
+sh packaging/install.sh --uninstall   # remove (add --user if you installed with --user)
+```
+
+To update later, run `git pull` and then `sh packaging/install.sh` again.
+
+### Arch Linux package (optional)
+
+On Arch-based systems you can build a real pacman package instead:
 
 ```sh
 cd packaging
-makepkg -si          # if the checkout path contains spaces: BUILDDIR=/tmp/makepkg-ss makepkg -si
+BUILDDIR=/tmp/makepkg-ss makepkg -sif
 ```
 
-This installs `silhouette-studio`, `ss-cli`, the desktop entry, and the udev
-rule. Replug the cutter after installing (or run
-`sudo udevadm control --reload-rules && sudo udevadm trigger`).
+`-f` forces a rebuild. Without it, `makepkg` reinstalls the previously built
+package and you keep running the old version. `BUILDDIR` is only needed when
+the checkout path contains spaces.
 
-### From source
+### Run without installing
 
 ```sh
 cargo build --release
@@ -96,14 +152,15 @@ cargo build --release
 
 ### Cutter permissions
 
-USB access needs the bundled udev rule:
+`install.sh` handles this unless you used `--user`. To add the USB rule by hand:
 
 ```sh
-sudo install -m644 packaging/70-silhouette-cutters.rules /etc/udev/rules.d/
+sudo install -Dm644 packaging/70-silhouette-cutters.rules /etc/udev/rules.d/70-silhouette-cutters.rules
 sudo udevadm control --reload-rules
 # unplug and replug the cutter
 ```
 
+Check that the cutter is detected with `ss-cli devices`.
 ## Usage
 
 ### GUI

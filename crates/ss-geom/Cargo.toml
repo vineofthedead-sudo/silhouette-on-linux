@@ -9,6 +9,7 @@ license.workspace = true
 [dependencies]
 kurbo.workspace = true
 i_overlay.workspace = true
+earcutr.workspace = true
 serde.workspace = true
 
 [dev-dependencies]

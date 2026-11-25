@@ -20,6 +20,7 @@ ss-text    = { path = "crates/ss-text" }
 
 kurbo     = "0.13"
 i_overlay = "9.2"
+earcutr   = "0.5"
 
 usvg      = "0.50"
 dxf       = "0.6"

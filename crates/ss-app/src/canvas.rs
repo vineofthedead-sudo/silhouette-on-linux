@@ -857,15 +857,17 @@ impl Canvas {
                     && let Some(Some(tex)) = self.textures.get(&bytes_key(&pat.encoded, pat.width_px, pat.height_px))
                 {
                     let mut mesh = egui::Mesh::with_texture(tex.id());
-                    let tw = pat.tile_width_mm.max(1.0) as f32;
-                    let th = pat.tile_height_mm.max(1.0) as f32;
-                    mesh.vertices.extend(c.fill_verts.iter().map(|&pt| {
-                        let tp = m * pt;
-                        egui::epaint::Vertex {
-                            pos: v.to_screen(origin, tp),
-                            uv: pos2(pt.x as f32 / tw, pt.y as f32 / th),
-                            color: Color32::WHITE,
+                    // Page point -> texture coordinates (1.0 = one tile).
+                    let to_uv = match pat.transform {
+                        Some(t) => {
+                            let (w, h) = (f64::from(pat.width_px.max(1)), f64::from(pat.height_px.max(1)));
+                            Affine::scale_non_uniform(1.0 / w, 1.0 / h) * (o.transform * Affine::new(t)).inverse()
                         }
+                        None => Affine::scale_non_uniform(1.0 / pat.tile_width_mm.max(1.0), 1.0 / pat.tile_height_mm.max(1.0)),
+                    };
+                    mesh.vertices.extend(c.fill_verts.iter().map(|&pt| {
+                        let uv = to_uv * pt;
+                        egui::epaint::Vertex { pos: v.to_screen(origin, m * pt), uv: pos2(uv.x as f32, uv.y as f32), color: Color32::WHITE }
                     }));
                     mesh.indices.extend_from_slice(&c.fill_indices);
                     shapes.push(Shape::mesh(mesh));

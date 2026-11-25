@@ -512,3 +512,225 @@ fn japan_v4_and_v5_match_svg_colors_patterns_and_offmat() {
     }
 }
 
+/// One `<path>` definition from a Silhouette Studio SVG export.
+struct SvgDef {
+    attrs: std::collections::HashMap<String, String>,
+    path: BezPath,
+    /// `(image id, tile matrix)` when the path is filled with a clipped pattern or picture.
+    tile: Option<(String, [f64; 6])>,
+}
+
+fn attr<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
+    let key = format!(" {name}=\"");
+    let s = tag.find(&key)? + key.len();
+    Some(&tag[s..s + tag[s..].find('"')?])
+}
+
+fn matrix(s: &str) -> Option<[f64; 6]> {
+    let v: Vec<f64> = s.strip_prefix("matrix(")?.strip_suffix(')')?.split_whitespace().map(|x| x.parse().ok()).collect::<Option<_>>()?;
+    v.try_into().ok()
+}
+
+/// Definitions keyed by their first anchor rounded to 0.01 mm.
+fn svg_defs(svg: &str) -> std::collections::HashMap<(i64, i64), SvgDef> {
+    let defs_end = svg.find("</defs>").unwrap();
+    let (defs, body) = svg.split_at(defs_end);
+    let mut clips = std::collections::HashMap::new();
+    for part in defs.split("<clipPath id=\"").skip(1) {
+        let clip = &part[..part.find('"').unwrap()];
+        let href = attr(&part[..part.find("/>").unwrap()], "xlink:href").unwrap();
+        clips.insert(href.trim_start_matches('#').to_string(), clip.to_string());
+    }
+    let mut tiles = std::collections::HashMap::new();
+    for part in body.split("<g clip-path=\"url(#").skip(1) {
+        let clip = &part[..part.find(')').unwrap()];
+        let inner = &part[part.find("<g transform=\"").unwrap() + 14..];
+        let m = matrix(&inner[..inner.find('"').unwrap()]).unwrap();
+        let img = attr(&inner[..inner.find("/>").unwrap()], "xlink:href").unwrap();
+        tiles.insert(clip.to_string(), (img.trim_start_matches("#c_").to_string(), m));
+    }
+    let mut out = std::collections::HashMap::new();
+    for part in defs.split("<path ").skip(1) {
+        let tag = format!(" {}", &part[..part.find("/>").unwrap()]);
+        let (Some(id), Some(d)) = (attr(&tag, "id"), attr(&tag, "d")) else {
+            continue;
+        };
+        let mut it = d.split_whitespace().skip(1).map(|v| v.parse::<f64>().unwrap());
+        let key = ((it.next().unwrap() * 100.0).round() as i64, (it.next().unwrap() * 100.0).round() as i64);
+        let attrs =
+            ["fill", "stroke", "stroke-width"].into_iter().filter_map(|n| Some((n.to_string(), attr(&tag, n)?.to_string()))).collect();
+        let tile = clips.get(id).and_then(|c| tiles.get(c)).cloned();
+        out.insert(key, SvgDef { attrs, path: BezPath::from_svg(d).unwrap(), tile });
+    }
+    out
+}
+
+/// Every shape of JAPAN is compared with the matching path of Silhouette Studio's own SVG export:
+/// fill and stroke colours, stroke width, and the exact pattern tile placement.
+#[test]
+fn japan_shapes_match_silhouette_svg_export() {
+    use ss_doc::ObjectKind;
+    use ss_geom::Affine;
+
+    let Some(dir) = fixtures_dir() else {
+        return skip("fixtures folder");
+    };
+    let (Some(v4_path), Some(v5_path), Some(svg_path)) =
+        (fixture(&dir, "JAPAN.studio"), fixture(&dir, "JAPAN.studio3"), fixture(&dir, "JAPAN.svg"))
+    else {
+        return skip("JAPAN fixtures");
+    };
+    let defs = svg_defs(&std::fs::read_to_string(&svg_path).unwrap());
+    assert_eq!(defs.len(), 684);
+
+    for path in [v4_path, v5_path] {
+        let f = studio::parse(&std::fs::read(&path).unwrap()).unwrap();
+        let doc = studio::to_document(&f);
+        assert_eq!(doc.objects.len(), f.shapes.len());
+        let (mut matched, mut tiles, mut pictures, mut gradients) = (0, 0, 0, 0);
+        let mut errors = Vec::new();
+        for (s, o) in f.shapes.iter().zip(&doc.objects) {
+            let p = s.outline[0].points[0];
+            let key = ((f64::from(p.x) * 100.0).round() as i64, (f64::from(p.y) * 100.0).round() as i64);
+            // Exports print 4-5 significant digits, so a coordinate can round either way.
+            let near = (-1..=1).flat_map(|dx| (-1..=1).map(move |dy| (key.0 + dx, key.1 + dy)));
+            let Some(def) = defs.get(&key).or_else(|| near.filter_map(|k| defs.get(&k)).next()) else {
+                continue;
+            };
+            matched += 1;
+            let mut err = |what: String| errors.push(format!("shape at ({}, {}): {what}", p.x, p.y));
+            // Compare the mesh's fill area with the independent reference geometry. SVG numbers
+            // are rounded; allow the area of a 0.01 mm strip along the flattened boundary.
+            let contours = ss_geom::flatten::to_contours([&def.path], 0.02);
+            let polygons = ss_geom::boolean::simplify(&contours, o.fill_rule());
+            let expected_area: f64 = polygons
+                .iter()
+                .map(|poly| {
+                    poly.iter()
+                        .map(|ring| {
+                            ring.iter().zip(ring.iter().cycle().skip(1)).take(ring.len()).map(|(a, b)| a.x * b.y - b.x * a.y).sum::<f64>()
+                                * 0.5
+                        })
+                        .sum::<f64>()
+                        .abs()
+                })
+                .sum();
+            let perimeter: f64 = ss_geom::flatten::flatten(&def.path, 0.02).iter().map(|l| l.len_mm()).sum();
+            let (vertices, indices) = ss_geom::triangulate::triangulate_path(&s.to_bezpath(), o.fill_rule(), 0.02);
+            let area: f64 = indices
+                .as_chunks::<3>()
+                .0
+                .iter()
+                .map(|t| {
+                    let (a, b, c) = (vertices[t[0] as usize], vertices[t[1] as usize], vertices[t[2] as usize]);
+                    (b - a).cross(c - a).abs() * 0.5
+                })
+                .sum();
+            if (area - expected_area).abs() > perimeter * 0.01 {
+                err(format!("mesh area {area:.6}, reference {expected_area:.6}"));
+            }
+            assert!(!matches!(o.kind, ObjectKind::Image(_)), "pictures are clipped pattern fills");
+            let fill = o.style.fill.map(|c| c.to_hex().to_uppercase()).unwrap_or_else(|| "none".into());
+            if def.attrs["fill"].starts_with("url(#ss_lineargradient") {
+                // Gradients are not modelled yet; one of their colours is used as a solid fill.
+                gradients += 1;
+                if o.style.fill.is_none() {
+                    err("gradient without a fallback fill".into());
+                }
+            } else if def.attrs["fill"] != fill {
+                err(format!("fill {fill}, SVG {}", def.attrs["fill"]));
+            }
+            let stroke = if o.style.stroke.a > 0 { o.style.stroke.to_hex().to_uppercase() } else { "none".into() };
+            if def.attrs["stroke"] != stroke {
+                err(format!("stroke {stroke}, SVG {}", def.attrs["stroke"]));
+            }
+            // The export writes hairlines (thickness 0) as 0.1 mm.
+            let width: f64 = def.attrs["stroke-width"].parse().unwrap();
+            let ours = if o.style.stroke_width_mm > 0.0 { o.style.stroke_width_mm } else { 0.1 };
+            if stroke != "none" && (width - ours).abs() > 1e-3 {
+                err(format!("stroke width {ours}, SVG {width}"));
+            }
+            match (&def.tile, &o.style.fill_pattern) {
+                (None, None) => {}
+                (Some((id, g)), Some(pat)) => {
+                    match s.pattern {
+                        Some(m) if m.tiled => tiles += 1,
+                        Some(_) => pictures += 1,
+                        None => {}
+                    }
+                    if *id != pat.id {
+                        err(format!("pattern {}, SVG {id}", pat.id));
+                    }
+                    let Some(t) = pat.transform else {
+                        err("pattern without placement".into());
+                        continue;
+                    };
+                    let scale = g[0].hypot(g[1]);
+                    if t[..4].iter().zip(&g[..4]).any(|(a, b)| (a - b).abs() > 1e-3 * scale) {
+                        err(format!("pattern matrix {t:?}, SVG {g:?}"));
+                    }
+                    // Tiles repeat, so the SVG origin must land on a whole tile in our pixel space.
+                    let px = Affine::new(t).inverse() * ss_geom::Point::new(g[4], g[5]);
+                    let (tx, ty) = (px.x / f64::from(pat.width_px), px.y / f64::from(pat.height_px));
+                    if (tx - tx.round()).abs() > 0.01 || (ty - ty.round()).abs() > 0.01 {
+                        err(format!("pattern phase off by ({tx:.3}, {ty:.3}) tiles"));
+                    }
+                }
+                (svg, ours) => err(format!("pattern {:?}, SVG {:?}", ours.as_ref().map(|p| &p.id), svg.as_ref().map(|t| &t.0))),
+            }
+        }
+        let name = path.display();
+        assert!(errors.is_empty(), "{name}: {} mismatches:\n{}", errors.len(), errors[..errors.len().min(20)].join("\n"));
+        assert!(matched >= 676, "{name}: only {matched} of 684 shapes matched an SVG path");
+        assert_eq!((tiles, pictures, gradients), (14, 2, 4), "{name}: pattern, picture and gradient fills");
+    }
+}
+
+/// Coverage is checked against the filled polygon boundaries, not just triangle bounds.
+/// This catches stalled ear clipping, overlapping fills, and bridges crossing holes.
+#[test]
+fn japan_fill_meshes_cover_paths() {
+    use ss_geom::{FillRule, boolean, flatten, triangulate};
+    let Some(dir) = fixtures_dir() else {
+        return skip("fixtures folder");
+    };
+    for name in ["JAPAN.studio", "JAPAN.studio3"] {
+        let Some(file) = fixture(&dir, name) else {
+            return skip(name);
+        };
+        let doc = studio::to_document(&studio::parse(&std::fs::read(file).unwrap()).unwrap());
+        let mut checked = 0;
+        for (i, object) in doc.objects.iter().enumerate() {
+            for path in object.page_paths() {
+                let contours = flatten::to_contours([&path], 0.02);
+                let filled = boolean::simplify(&contours, object.fill_rule());
+                let expected: Vec<_> = filled.into_iter().flatten().collect();
+                let (vertices, indices) = triangulate::triangulate_path(&path, object.fill_rule(), 0.02);
+                assert_eq!(indices.len() % 3, 0);
+                assert!(vertices.iter().all(|p| p.is_finite()));
+                let triangles: Vec<Vec<Point>> =
+                    indices.as_chunks::<3>().0.iter().map(|t| t.iter().map(|&j| vertices[j as usize]).collect()).collect();
+                let mismatch = boolean::boolean_contours(&expected, &triangles, boolean::BoolOp::Xor, FillRule::NonZero);
+                let mismatch_area: f64 = mismatch
+                    .iter()
+                    .map(|poly| {
+                        poly.iter()
+                            .map(|ring| {
+                                ring.iter()
+                                    .zip(ring.iter().cycle().skip(1))
+                                    .take(ring.len())
+                                    .map(|(a, b)| a.x * b.y - b.x * a.y)
+                                    .sum::<f64>()
+                                    * 0.5
+                            })
+                            .sum::<f64>()
+                            .abs()
+                    })
+                    .sum();
+                assert!(mismatch_area < 1e-4, "{name} shape {i}: missing or excess fill {mismatch_area} mm²");
+                checked += 1;
+            }
+        }
+        assert_eq!(checked, 684, "{name}");
+    }
+}

@@ -204,6 +204,56 @@ fn fmt_num_precise(v: f64) -> String {
     if s == "-0" { "0".into() } else { s.into() }
 }
 
+/// Writes `<defs>` with one `<image>` per distinct pattern raster and one `<pattern>` per
+/// pattern-filled object; returns the pattern id of each such object.
+fn pattern_defs(doc: &Document, s: &mut String) -> std::collections::HashMap<ss_doc::ObjectId, String> {
+    let mut ids = std::collections::HashMap::new();
+    let objs: Vec<&Object> = doc.visible_objects().filter(|o| o.style.fill_pattern.is_some()).collect();
+    if objs.is_empty() {
+        return ids;
+    }
+    let mut images: Vec<&str> = Vec::new();
+    s.push_str("<defs>\n");
+    for (n, o) in objs.into_iter().enumerate() {
+        let Some(p) = o.style.fill_pattern.as_deref() else {
+            continue;
+        };
+        let k = match images.iter().position(|id| *id == p.id) {
+            Some(k) => k,
+            None => {
+                let mime = if p.encoded.starts_with(&[0xff, 0xd8]) { "image/jpeg" } else { "image/png" };
+                let _ = writeln!(
+                    s,
+                    r#"<image id="ss-pattern-image-{}" width="{}" height="{}" preserveAspectRatio="none" href="data:{mime};base64,{}"/>"#,
+                    images.len(),
+                    p.width_px,
+                    p.height_px,
+                    ss_doc::b64::encode(&p.encoded)
+                );
+                images.push(&p.id);
+                images.len() - 1
+            }
+        };
+        let (w, h) = (f64::from(p.width_px.max(1)), f64::from(p.height_px.max(1)));
+        let m = o.transform
+            * match p.transform {
+                Some(t) => Affine::new(t),
+                None => Affine::scale_non_uniform(p.tile_width_mm / w, p.tile_height_mm / h),
+            };
+        let id = format!("ss-pattern-{n}");
+        // Pattern matrices map thousands of pixels onto millimetres; keep enough digits.
+        let c = m.as_coeffs().map(|v| format!("{v:.9}").trim_end_matches('0').trim_end_matches('.').to_string());
+        let _ = writeln!(
+            s,
+            r##"<pattern id="{id}" patternUnits="userSpaceOnUse" width="{w}" height="{h}" patternTransform="matrix({})"><use href="#ss-pattern-image-{k}"/></pattern>"##,
+            c.join(" ")
+        );
+        ids.insert(o.id, id);
+    }
+    s.push_str("</defs>\n");
+    ids
+}
+
 /// Exports visible objects as an SVG sized to the page, in millimetres. Images (and the
 /// background) are embedded as `<image>`; registration marks, when enabled, are drawn as filled
 /// black shapes so the sheet can be printed elsewhere.
@@ -222,6 +272,7 @@ pub fn export(doc: &Document) -> String {
     if let Some(bg) = &doc.background {
         let _ = writeln!(s, "{}", image_element(bg, Affine::IDENTITY, &format!(r#"id="{BACKGROUND_ID}""#)));
     }
+    let patterns = pattern_defs(doc, &mut s);
     for layer in &doc.layers {
         let objs: Vec<&Object> = doc.visible_objects().filter(|o| o.layer == layer.id).collect();
         if objs.is_empty() {
@@ -232,7 +283,10 @@ pub fn export(doc: &Document) -> String {
             for (img, m) in o.page_images() {
                 let _ = writeln!(s, "{}", image_element(img, m, &format!(r#"data-name="{}""#, esc(&o.name))));
             }
-            let fill = o.style.fill.map_or("none".to_string(), Rgba::to_hex);
+            let fill = match patterns.get(&o.id) {
+                Some(id) => format!("url(#{id})"),
+                None => o.style.fill.map_or("none".to_string(), Rgba::to_hex),
+            };
             let rule = if o.fill_rule() == FillRule::EvenOdd { r#" fill-rule="evenodd""# } else { "" };
             let stroke = if o.style.stroke.a == 0 { "none".to_string() } else { o.style.stroke.to_hex() };
             for p in o.cut_paths() {
