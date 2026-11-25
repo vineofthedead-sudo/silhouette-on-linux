@@ -1,0 +1,21 @@
+[package]
+name = "ss-formats"
+description = "File format readers and writers for the Silhouette Studio Linux port"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+ss-geom.workspace = true
+ss-doc.workspace = true
+usvg.workspace = true
+dxf.workspace = true
+thiserror.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+png.workspace = true
+
+[lints]
+workspace = true

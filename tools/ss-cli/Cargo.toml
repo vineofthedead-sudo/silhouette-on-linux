@@ -1,0 +1,16 @@
+[package]
+name = "ss-cli"
+description = "Command-line tools for the Silhouette Studio Linux port"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "ss-cli"
+path = "src/main.rs"
+
+[dependencies]
+
+[lints]
+workspace = true

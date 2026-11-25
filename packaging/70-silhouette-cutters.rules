@@ -1,0 +1,7 @@
+# Silhouette / Graphtec craft cutters.
+# Grants the logged-in seat user access so the app can talk to the cutter without root.
+# Install: sudo install -m644 70-silhouette-cutters.rules /etc/udev/rules.d/ && sudo udevadm control --reload
+SUBSYSTEM=="usb", ATTR{idVendor}=="0b4d", MODE="0660", TAG+="uaccess"
+# Cameo 5 Alpha and Alpha Plus use their own vendor ID; match only those products.
+SUBSYSTEM=="usb", ATTR{idVendor}=="3844", ATTR{idProduct}=="0001", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="3844", ATTR{idProduct}=="0002", MODE="0660", TAG+="uaccess"

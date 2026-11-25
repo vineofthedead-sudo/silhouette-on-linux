@@ -1,0 +1,13 @@
+# Reverse-engineering workspace and proprietary inputs (never commit)
+extracted/
+unpacked/
+SSLinux.gpr
+SSLinux.rep/
+SS_V5.0.539.001_W6R.exe
+
+# Build output
+target/
+
+# Editor / OS noise
+*.swp
+.DS_Store

@@ -1,0 +1,18 @@
+[package]
+name = "ss-gpgl"
+description = "GPGL cutter command encoder for the Silhouette Studio Linux port"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+ss-geom.workspace = true
+ss-doc.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+ss-formats.workspace = true
+
+[lints]
+workspace = true
