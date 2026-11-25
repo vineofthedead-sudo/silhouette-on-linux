@@ -1946,6 +1946,8 @@ dependencies = [
  "num-traits 0.2.19",
  "png",
  "tiff",
+ "zune-core",
+ "zune-jpeg",
 ]
 
 [[package]]
@@ -3757,6 +3759,7 @@ version = "0.1.0"
 dependencies = [
  "eframe",
  "egui",
+ "image",
  "rfd",
  "ss-config",
  "ss-device",
@@ -3764,6 +3767,7 @@ dependencies = [
  "ss-formats",
  "ss-geom",
  "ss-gpgl",
+ "ss-text",
  "tracing",
  "tracing-subscriber",
 ]
@@ -3780,6 +3784,7 @@ dependencies = [
  "ss-formats",
  "ss-geom",
  "ss-gpgl",
+ "ss-text",
 ]
 
 [[package]]
@@ -3798,6 +3803,7 @@ version = "0.1.0"
 dependencies = [
  "crossbeam-channel",
  "rusb",
+ "ss-doc",
  "ss-geom",
  "ss-gpgl",
  "thiserror 2.0.21",
@@ -3819,11 +3825,14 @@ name = "ss-formats"
 version = "0.1.0"
 dependencies = [
  "dxf",
+ "epaint_default_fonts",
  "flate2",
  "png",
+ "serde",
  "serde_json",
  "ss-doc",
  "ss-geom",
+ "ss-text",
  "thiserror 2.0.21",
  "usvg",
 ]
@@ -3846,6 +3855,19 @@ dependencies = [
  "ss-formats",
  "ss-geom",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "ss-text"
+version = "0.1.0"
+dependencies = [
+ "ab_glyph",
+ "epaint_default_fonts",
+ "fontdb",
+ "ss-doc",
+ "ss-geom",
+ "thiserror 2.0.21",
+ "usvg",
 ]
 
 [[package]]

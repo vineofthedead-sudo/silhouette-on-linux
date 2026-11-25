@@ -1,8 +1,8 @@
 //! Cut job encoding: settings header, planned geometry, footer.
 
-use ss_doc::{CutAction, Document};
+use ss_doc::{CutAction, Document, Page, RegMarks};
 use ss_geom::flatten::{Polyline, flatten};
-use ss_geom::{BezPath, FillRule, Point, Rect};
+use ss_geom::{BezPath, FillRule, Point, Rect, Vec2};
 
 use crate::{ETX, plan, to_units};
 
@@ -77,6 +77,50 @@ pub struct Perforation {
     pub gap_mm: f64,
 }
 
+/// Print & Cut registration (*public*, experimental): the cutter's optical sensor finds the
+/// printed marks and measures all later coordinates from the top-left mark.
+///
+/// The command sequence follows inkscape-silhouette (`Graphtec.py`, `plot()`), cross-checked
+/// against the `TB5x`/`TB123` literals in the original application. It has not been verified on
+/// hardware by this project.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Registration {
+    /// Outer corner of the top-left mark on the page, mm (x across, y down). After registration
+    /// this point is the cutter origin.
+    pub origin_mm: (f64, f64),
+    /// Distance between the outer edges of the marks, mm (width across, height down).
+    pub size_mm: (f64, f64),
+    /// Arm length of the L marks, mm (`TB51`).
+    pub mark_length_mm: f64,
+    /// Line thickness of the marks, mm (`TB53`).
+    pub mark_thickness_mm: f64,
+    /// Let the cutter search for the marks (`TB123`); otherwise the user positions the tool over
+    /// the first mark with the arrow keys (`TB23`).
+    pub auto_search: bool,
+}
+
+impl Registration {
+    /// How far before the first mark the automatic search starts, mm.
+    pub const SEARCH_MARGIN_MM: f64 = 10.0;
+
+    pub fn from_marks(marks: &RegMarks, page: &Page, auto_search: bool) -> Self {
+        let a = marks.area(page);
+        Self {
+            origin_mm: (a.x0, a.y0),
+            size_mm: (a.width(), a.height()),
+            mark_length_mm: marks.length_mm,
+            mark_thickness_mm: marks.thickness_mm,
+            auto_search,
+        }
+    }
+
+    /// The area the cutter can reach after registration, in page mm.
+    pub fn area(&self) -> Rect {
+        let (x, y) = self.origin_mm;
+        Rect::new(x, y, x + self.size_mm.0, y + self.size_mm.1)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct JobSettings {
     /// Media width (across the carriage) and height (feed direction) in mm.
@@ -91,6 +135,8 @@ pub struct JobSettings {
     pub optimize_order: bool,
     pub off_media: OffMedia,
     pub perforation: Option<Perforation>,
+    /// Print & Cut registration before cutting. Geometry must then lie inside the marks.
+    pub registration: Option<Registration>,
 }
 
 impl Default for JobSettings {
@@ -104,6 +150,7 @@ impl Default for JobSettings {
             optimize_order: true,
             off_media: OffMedia::Error,
             perforation: None,
+            registration: None,
         }
     }
 }
@@ -114,6 +161,8 @@ pub enum EncodeError {
     OutOfBounds { count: usize, w: f64, h: f64 },
     #[error("invalid setting: {0}")]
     InvalidSetting(&'static str),
+    #[error("{count} path(s) extend outside the registration marks")]
+    OutsideRegistration { count: usize },
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -129,6 +178,10 @@ pub struct JobStats {
 pub struct Job {
     pub bytes: Vec<u8>,
     pub stats: JobStats,
+    /// With registration: length of the prefix ending in the mark search command. The sender
+    /// must wait for the cutter's reply (see [`crate::parse_registration`]) before sending the
+    /// rest.
+    pub registration_end: Option<usize>,
 }
 
 struct Writer {
@@ -173,6 +226,19 @@ fn validate(s: &JobSettings) -> Result<(), EncodeError> {
         && !(p.cut_mm > 0.0 && p.gap_mm > 0.0)
     {
         return Err(EncodeError::InvalidSetting("perforation lengths must be positive"));
+    }
+    if let Some(r) = s.registration {
+        let vals = [r.origin_mm.0, r.origin_mm.1, r.size_mm.0, r.size_mm.1, r.mark_length_mm, r.mark_thickness_mm];
+        if !vals.iter().all(|v| v.is_finite()) || r.origin_mm.0 < 0.0 || r.origin_mm.1 < 0.0 {
+            return Err(EncodeError::InvalidSetting("registration origin must be on the media"));
+        }
+        if r.size_mm.0 <= 0.0 || r.size_mm.1 <= 0.0 || r.mark_length_mm <= 0.0 || r.mark_thickness_mm <= 0.0 {
+            return Err(EncodeError::InvalidSetting("registration mark sizes must be positive"));
+        }
+        let a = r.area();
+        if a.x1 > w + 1e-6 || a.y1 > h + 1e-6 {
+            return Err(EncodeError::InvalidSetting("registration marks extend past the media"));
+        }
     }
     Ok(())
 }
@@ -313,28 +379,42 @@ fn polyline_points(pl: &Polyline, overcut: f64) -> Vec<Point> {
 }
 
 /// Encodes `paths` (page millimetres, y down, origin at the media's top-left corner).
+///
+/// With [`JobSettings::registration`], geometry must lie inside the marks (the off-media policy
+/// applies to the mark area) and is written relative to the top-left mark.
 pub fn encode(paths: &[BezPath], s: &JobSettings) -> Result<Job, EncodeError> {
     validate(s)?;
     let media = Rect::new(0.0, 0.0, s.media_mm.0, s.media_mm.1);
+    let area = s.registration.map_or(media, |r| r.area());
+    let out_of_bounds = |count: usize| match s.registration {
+        Some(_) => EncodeError::OutsideRegistration { count },
+        None => EncodeError::OutOfBounds { count, w: media.x1, h: media.y1 },
+    };
     let mut lines: Vec<Polyline> = paths.iter().flat_map(|p| flatten(p, s.tolerance_mm)).collect();
     match s.off_media {
         OffMedia::Error => {
-            let count = lines.iter().filter(|l| !l.points.iter().all(|p| inside(media, *p))).count();
+            let count = lines.iter().filter(|l| !l.points.iter().all(|p| inside(area, *p))).count();
             if count > 0 {
-                return Err(EncodeError::OutOfBounds { count, w: media.x1, h: media.y1 });
+                return Err(out_of_bounds(count));
             }
         }
         OffMedia::SkipOutside => {
-            lines.retain(|l| l.points.iter().any(|p| inside(media, *p)));
-            let count = lines.iter().filter(|l| !l.points.iter().all(|p| inside(media, *p))).count();
+            lines.retain(|l| l.points.iter().any(|p| inside(area, *p)));
+            let count = lines.iter().filter(|l| !l.points.iter().all(|p| inside(area, *p))).count();
             if count > 0 {
-                return Err(EncodeError::OutOfBounds { count, w: media.x1, h: media.y1 });
+                return Err(out_of_bounds(count));
             }
         }
-        OffMedia::Clip => lines = lines.iter().flat_map(|l| clip_polyline(l, media)).collect(),
+        OffMedia::Clip => lines = lines.iter().flat_map(|l| clip_polyline(l, area)).collect(),
     }
     if s.optimize_order {
-        lines = plan::order(lines, Point::ZERO);
+        lines = plan::order(lines, area.origin());
+    }
+    if s.registration.is_some() {
+        let shift = Vec2::new(-area.x0, -area.y0);
+        for l in &mut lines {
+            l.points.iter_mut().for_each(|p| *p += shift);
+        }
     }
 
     let mut w = Writer { buf: Vec::new(), commands: 0 };
@@ -358,6 +438,25 @@ pub fn encode(paths: &[BezPath], s: &JobSettings) -> Result<Job, EncodeError> {
     w.cmd(&format!("FY{}", u8::from(s.track_enhancing)));
     w.cmd(&format!("FX{}{suffix}", t.force));
     w.cmd(&format!("!{}{suffix}", t.speed));
+    let mut registration_end = None;
+    if let Some(r) = s.registration {
+        w.cmd("TB50,0");
+        w.cmd("TB99");
+        // Mark type 2: Cameo / Portrait style (square plus two L brackets).
+        w.cmd("TB52,2");
+        w.cmd(&format!("TB51,{}", to_units(r.mark_length_mm)));
+        w.cmd(&format!("TB53,{}", to_units(r.mark_thickness_mm)));
+        w.cmd("TB55,1");
+        let (h, wd) = (to_units(r.size_mm.1), to_units(r.size_mm.0));
+        if r.auto_search {
+            let top = to_units((r.origin_mm.1 - Registration::SEARCH_MARGIN_MM).max(0.0));
+            let left = to_units((r.origin_mm.0 - Registration::SEARCH_MARGIN_MM).max(0.0));
+            w.cmd(&format!("TB123,{h},{wd},{top},{left}"));
+        } else {
+            w.cmd(&format!("TB23,{h},{wd}"));
+        }
+        registration_end = Some(w.buf.len());
+    }
 
     let mut stats = JobStats::default();
     let mut pos = Point::ZERO;
@@ -398,15 +497,19 @@ pub fn encode(paths: &[BezPath], s: &JobSettings) -> Result<Job, EncodeError> {
         EndAction::Stay => {}
     }
     stats.commands = w.commands;
-    Ok(Job { bytes: w.buf, stats })
+    Ok(Job { bytes: w.buf, stats, registration_end })
 }
 
 /// Outlines of the visible objects whose cut action is in `actions`, in page millimetres.
-/// `CutEdge` objects contribute only the outer boundary of their welded outline.
+/// `CutEdge` objects contribute only the outer boundary of their welded outline. Images and the
+/// background never produce cut paths.
 pub fn document_paths(doc: &Document, actions: &[CutAction]) -> Vec<BezPath> {
     let mut out = Vec::new();
     for o in doc.visible_objects().filter(|o| actions.contains(&o.cut)) {
-        let paths = o.page_paths();
+        let paths = o.cut_paths();
+        if paths.is_empty() {
+            continue;
+        }
         if o.cut == CutAction::CutEdge {
             let welded = ss_geom::boolean::weld(&paths, FillRule::EvenOdd, ss_geom::DEFAULT_TOLERANCE);
             let outer: Vec<_> = welded.into_iter().filter_map(|poly| poly.into_iter().next()).map(|c| vec![c]).collect();
@@ -437,6 +540,20 @@ mod tests {
         assert_eq!(starts, vec![0.0, 3.0, 6.0, 9.0]);
         assert!(d.iter().take(3).all(|s| (s.last().unwrap().x - s[0].x - 2.0).abs() < 1e-9));
         assert!((d[3].last().unwrap().x - 10.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn images_never_produce_cut_paths() {
+        let mut doc = Document::default();
+        let l = doc.default_layer();
+        let png = b"\x89PNG\r\n\x1a\n\0\0\0\x0dIHDR\0\0\0\x02\0\0\0\x02".to_vec();
+        let img = ss_doc::ImageData::from_png(png, Rect::new(0.0, 0.0, 10.0, 10.0)).unwrap();
+        let mut o = ss_doc::Object::image("Art", l, img);
+        // Even when someone sets the image to cut, it has no outline to cut.
+        o.cut = CutAction::Cut;
+        doc.objects.push(o);
+        doc.objects.push(ss_doc::Object::path("sq", l, ss_geom::Shape::to_path(&Rect::new(1.0, 1.0, 2.0, 2.0), 0.0)));
+        assert_eq!(document_paths(&doc, &[CutAction::Cut, CutAction::CutEdge]).len(), 1);
     }
 
     #[test]

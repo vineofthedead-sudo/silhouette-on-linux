@@ -16,6 +16,10 @@ pub enum JobEvent {
     /// The cutter reports no media; load the mat to continue.
     WaitingForMedia,
     Sending { sent: usize, total: usize },
+    /// The cutter is scanning for the registration marks.
+    Registering,
+    /// The marks were found; cutting continues relative to them.
+    Registered,
     /// All data is sent; the cutter is still working through its buffer.
     Finishing,
     Finished,
@@ -39,6 +43,8 @@ pub struct RunOptions {
     pub wait_for_finish: bool,
     pub finish_timeout: Duration,
     pub poll_interval: Duration,
+    /// How long the registration mark search may take.
+    pub registration_timeout: Duration,
 }
 
 impl Default for RunOptions {
@@ -49,6 +55,7 @@ impl Default for RunOptions {
             wait_for_finish: true,
             finish_timeout: Duration::from_secs(4 * 3600),
             poll_interval: Duration::from_millis(500),
+            registration_timeout: Duration::from_secs(40),
         }
     }
 }
@@ -81,13 +88,23 @@ impl JobHandle {
 
 /// Starts sending `job` (a complete GPGL stream) on its own thread.
 pub fn spawn_job<T: Transport + 'static>(transport: T, job: Vec<u8>, opts: RunOptions) -> JobHandle {
+    spawn(transport, job, None, opts)
+}
+
+/// Like [`spawn_job`] for an encoded job: with registration, sending pauses after the mark
+/// search until the cutter reports that it found the marks.
+pub fn spawn_cut_job<T: Transport + 'static>(transport: T, job: ss_gpgl::Job, opts: RunOptions) -> JobHandle {
+    spawn(transport, job.bytes, job.registration_end, opts)
+}
+
+fn spawn<T: Transport + 'static>(transport: T, job: Vec<u8>, registration_end: Option<usize>, opts: RunOptions) -> JobHandle {
     let (tx, rx) = unbounded();
     let cancel = Arc::new(AtomicBool::new(false));
     let flag = cancel.clone();
     let thread = std::thread::Builder::new()
         .name("cut-job".into())
         .spawn(move || {
-            let end = match run(transport, &job, &opts, &flag, &tx) {
+            let end = match run(transport, &job, registration_end, &opts, &flag, &tx) {
                 Ok(()) => JobEvent::Finished,
                 Err(DeviceError::Cancelled) => JobEvent::Cancelled,
                 Err(e) => JobEvent::Failed(e.to_string()),
@@ -101,6 +118,7 @@ pub fn spawn_job<T: Transport + 'static>(transport: T, job: Vec<u8>, opts: RunOp
 fn run<T: Transport>(
     transport: T,
     job: &[u8],
+    registration_end: Option<usize>,
     opts: &RunOptions,
     cancel: &AtomicBool,
     tx: &Sender<JobEvent>,
@@ -120,14 +138,22 @@ fn run<T: Transport>(
     })?;
 
     let total = job.len();
+    let split = registration_end.filter(|&e| e <= total).unwrap_or(0);
     let mut last_pct = usize::MAX;
-    cutter.write_all(job, opts.stall_timeout, &cancelled, &mut |sent| {
+    let mut report = |sent: usize| {
         let pct = sent * 100 / total.max(1);
         if pct != last_pct || sent == total {
             last_pct = pct;
             let _ = tx.send(JobEvent::Sending { sent, total });
         }
-    })?;
+    };
+    if split > 0 {
+        cutter.write_all(&job[..split], opts.stall_timeout, &cancelled, &mut report)?;
+        let _ = tx.send(JobEvent::Registering);
+        cutter.wait_registration(opts.registration_timeout, &cancelled)?;
+        let _ = tx.send(JobEvent::Registered);
+    }
+    cutter.write_all(&job[split..], opts.stall_timeout, &cancelled, &mut |sent| report(split + sent))?;
 
     if opts.wait_for_finish {
         let _ = tx.send(JobEvent::Finishing);

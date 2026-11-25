@@ -3,10 +3,10 @@
 use std::time::Duration;
 
 use egui::{DragValue, Ui};
-use ss_device::{FileTransport, JobEvent, JobHandle, RunOptions, UsbDeviceInfo, UsbTransport, VirtualCutter, VirtualHandle, spawn_job};
+use ss_device::{FileTransport, JobEvent, JobHandle, RunOptions, UsbDeviceInfo, UsbTransport, VirtualCutter, VirtualHandle, spawn_cut_job};
 use ss_doc::{CutAction, Editor};
-use ss_geom::Point;
-use ss_gpgl::{EndAction, Job, JobSettings, OffMedia, Perforation, Tool, ToolSettings};
+use ss_geom::{Point, Vec2};
+use ss_gpgl::{EndAction, Job, JobSettings, OffMedia, Perforation, Registration, Tool, ToolSettings};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Target {
@@ -50,8 +50,18 @@ enum End {
 struct Running {
     handle: JobHandle,
     virtual_cutter: Option<VirtualHandle>,
+    /// Page position of the cutter origin: the top-left mark when aligning to registration marks.
+    origin: Vec2,
     progress: f32,
     state: String,
+}
+
+/// Moves simulated tool paths from cutter coordinates to page coordinates.
+fn to_page(strokes: Vec<Vec<Point>>, origin: Vec2) -> Vec<Vec<Point>> {
+    if origin == Vec2::ZERO {
+        return strokes;
+    }
+    strokes.into_iter().map(|s| s.into_iter().map(|p| p + origin).collect()).collect()
 }
 
 pub struct SendPanel {
@@ -69,6 +79,8 @@ pub struct SendPanel {
     end: End,
     off_media: OffMedia,
     optimize_order: bool,
+    use_registration: bool,
+    auto_search: bool,
     running: Option<Running>,
     last_summary: Option<String>,
     /// Overlay to hand to the canvas on the next poll.
@@ -93,6 +105,8 @@ impl Default for SendPanel {
             end: End::Home,
             off_media: OffMedia::Error,
             optimize_order: true,
+            use_registration: true,
+            auto_search: true,
             running: None,
             last_summary: None,
             pending_overlay: None,
@@ -113,6 +127,15 @@ fn summary(job: &Job) -> String {
 }
 
 impl SendPanel {
+    fn registration(&self, editor: &Editor) -> Option<Registration> {
+        let page = &editor.doc.page;
+        page.registration.filter(|_| self.use_registration).map(|m| Registration::from_marks(&m, page, self.auto_search))
+    }
+
+    fn origin(&self, editor: &Editor) -> Vec2 {
+        self.registration(editor).map_or(Vec2::ZERO, |r| Vec2::new(r.origin_mm.0, r.origin_mm.1))
+    }
+
     fn settings(&self, editor: &Editor) -> JobSettings {
         let page = &editor.doc.page;
         let pen = self.lines == Lines::Sketch;
@@ -137,6 +160,7 @@ impl SendPanel {
             off_media: self.off_media,
             optimize_order: self.optimize_order,
             perforation: (self.lines == Lines::Perforate).then_some(self.perforation),
+            registration: self.registration(editor),
             ..JobSettings::default()
         }
     }
@@ -184,13 +208,14 @@ impl SendPanel {
             }
         };
         self.last_summary = Some(summary(&job));
+        let origin = self.origin(editor);
         let mut virtual_cutter = None;
         let handle = match self.target {
             Target::Virtual => {
                 let (vc, h) = VirtualCutter::new();
                 virtual_cutter = Some(h);
                 let opts = RunOptions { poll_interval: Duration::from_millis(20), ..RunOptions::default() };
-                spawn_job(vc, job.bytes, opts)
+                spawn_cut_job(vc, job, opts)
             }
             Target::File => {
                 let Some(mut path) = rfd::FileDialog::new()
@@ -207,7 +232,7 @@ impl SendPanel {
                 match FileTransport::create(&path) {
                     Ok(t) => {
                         let opts = RunOptions { poll_interval: Duration::from_millis(1), ..RunOptions::default() };
-                        spawn_job(t, job.bytes, opts)
+                        spawn_cut_job(t, job, opts)
                     }
                     Err(e) => {
                         *status = format!("Could not create {}: {e}", path.display());
@@ -227,7 +252,7 @@ impl SendPanel {
                     return;
                 }
                 match UsbTransport::open(info) {
-                    Ok(t) => spawn_job(t, job.bytes, RunOptions::default()),
+                    Ok(t) => spawn_cut_job(t, job, RunOptions::default()),
                     Err(e) => {
                         *status = format!("Could not open {}: {e}", info.name());
                         return;
@@ -236,7 +261,7 @@ impl SendPanel {
             }
         };
         *status = format!("Sending to {}", self.target_name(self.target));
-        self.running = Some(Running { handle, virtual_cutter, progress: 0.0, state: "Connecting…".into() });
+        self.running = Some(Running { handle, virtual_cutter, origin, progress: 0.0, state: "Connecting…".into() });
     }
 
     /// Processes job events. Returns a new tool-path overlay for the canvas when one is ready.
@@ -256,6 +281,8 @@ impl SendPanel {
                         run.progress = if *total == 0 { 1.0 } else { *sent as f32 / *total as f32 };
                         run.state = format!("Sending {sent} / {total} bytes");
                     }
+                    JobEvent::Registering => run.state = "Looking for the registration marks…".into(),
+                    JobEvent::Registered => run.state = "Registration marks found".into(),
                     JobEvent::Finishing => run.state = "Cutting… waiting for the cutter to finish".into(),
                     JobEvent::Finished => *status = "Job finished".into(),
                     JobEvent::Cancelled => *status = "Job cancelled".into(),
@@ -266,7 +293,7 @@ impl SendPanel {
                     if ev == JobEvent::Finished
                         && let Some(v) = &run.virtual_cutter
                     {
-                        self.pending_overlay = Some(v.simulation().strokes);
+                        self.pending_overlay = Some(to_page(v.simulation().strokes, run.origin));
                     }
                 }
             }
@@ -361,6 +388,18 @@ impl SendPanel {
                         ui.selectable_value(&mut self.off_media, OffMedia::Clip, "Clip at the edge");
                     });
             });
+            ui.separator();
+            ui.heading("Print & Cut");
+            if editor.doc.page.registration.is_some() {
+                ui.checkbox(&mut self.use_registration, "Align to the registration marks");
+                ui.add_enabled_ui(self.use_registration, |ui| {
+                    ui.checkbox(&mut self.auto_search, "Find the marks automatically")
+                        .on_hover_text("Otherwise move the tool over the top-left mark with the cutter's arrow keys first");
+                });
+                ui.weak("Experimental: the mark search has not been tested on a real cutter yet.");
+            } else {
+                ui.weak("Turn on registration marks in the Page tab to cut around a printed design.");
+            }
             ui.horizontal(|ui| {
                 ui.label("When done");
                 ui.radio_value(&mut self.end, End::Home, "Return home");
@@ -374,7 +413,7 @@ impl SendPanel {
                     match self.build(editor) {
                         Ok(job) => {
                             self.last_summary = Some(summary(&job));
-                            self.pending_overlay = Some(ss_gpgl::simulate(&job.bytes).strokes);
+                            self.pending_overlay = Some(to_page(ss_gpgl::simulate(&job.bytes).strokes, self.origin(editor)));
                         }
                         Err(e) => *status = e,
                     }

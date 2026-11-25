@@ -1,0 +1,21 @@
+[package]
+name = "ss-text"
+description = "System font discovery and text-to-path layout for the Silhouette Studio Linux port"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+ss-geom.workspace = true
+ss-doc.workspace = true
+ab_glyph.workspace = true
+fontdb.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+epaint_default_fonts.workspace = true
+usvg.workspace = true
+
+[lints]
+workspace = true

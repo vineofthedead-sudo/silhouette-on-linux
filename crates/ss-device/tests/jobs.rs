@@ -90,6 +90,47 @@ fn cancel_stops_sending() {
     assert!(h.received().is_empty());
 }
 
+fn registration_job() -> ss_gpgl::Job {
+    let page = ss_doc::Page::preset("letter").unwrap();
+    let reg = ss_gpgl::Registration::from_marks(&ss_doc::RegMarks::default(), &page, true);
+    let settings = JobSettings { media_mm: (page.width_mm, page.height_mm), registration: Some(reg), ..JobSettings::default() };
+    encode(&[Rect::new(30.0, 40.0, 60.0, 70.0).to_path(0.0)], &settings).unwrap()
+}
+
+#[test]
+fn registration_pauses_until_marks_are_found() {
+    let (vc, h) = VirtualCutter::new();
+    let job = registration_job();
+    let events = ss_device::spawn_cut_job(vc, job.clone(), fast()).wait();
+    let pos = |e: &JobEvent| events.iter().position(|x| x == e).unwrap_or_else(|| panic!("{e:?} missing from {events:?}"));
+    let end = job.registration_end.unwrap();
+    // The search is sent in full, then the cutter is heard from, then the cut follows.
+    assert!(pos(&JobEvent::Sending { sent: end, total: job.bytes.len() }) < pos(&JobEvent::Registering));
+    assert!(pos(&JobEvent::Registering) < pos(&JobEvent::Registered));
+    assert!(pos(&JobEvent::Registered) < pos(&JobEvent::Sending { sent: job.bytes.len(), total: job.bytes.len() }));
+    assert_eq!(events.last(), Some(&JobEvent::Finished));
+    assert_eq!(h.received(), job.bytes);
+    assert!(h.simulation().registration.is_some_and(|r| r.auto_search));
+}
+
+#[test]
+fn registration_failure_stops_before_cutting() {
+    let job = registration_job();
+    let end = job.registration_end.unwrap();
+    let (vc, h) = VirtualCutter::new();
+    h.set_registration_reply(None);
+    let opts = RunOptions { registration_timeout: Duration::from_millis(200), ..fast() };
+    let events = ss_device::spawn_cut_job(vc, job.clone(), opts).wait();
+    assert!(matches!(events.last(), Some(JobEvent::Failed(m)) if m.contains("registration marks not found")), "{events:?}");
+    assert_eq!(h.received(), job.bytes[..end], "nothing past the mark search may be sent");
+
+    let (vc, h) = VirtualCutter::new();
+    h.set_registration_reply(Some(b"    1\x03".to_vec()));
+    let events = ss_device::spawn_cut_job(vc, job.clone(), fast()).wait();
+    assert!(matches!(events.last(), Some(JobEvent::Failed(m)) if m.contains("\"1\"")), "{events:?}");
+    assert_eq!(h.received().len(), end);
+}
+
 #[test]
 fn file_transport_writes_only_the_job() {
     let path = std::env::temp_dir().join(format!("ss-device-test-{}.gpgl", std::process::id()));

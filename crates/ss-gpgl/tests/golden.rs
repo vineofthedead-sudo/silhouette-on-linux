@@ -4,7 +4,7 @@
 use ss_geom::flatten::flatten;
 use ss_geom::kurbo::Circle;
 use ss_geom::{BezPath, Point, Rect, Shape};
-use ss_gpgl::{EncodeError, EndAction, JobSettings, OffMedia, Perforation, ToolSettings, encode, simulate};
+use ss_gpgl::{EncodeError, EndAction, JobSettings, OffMedia, Perforation, Registration, ToolSettings, encode, simulate};
 
 fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> BezPath {
     Rect::new(x0, y0, x1, y1).to_path(0.0)
@@ -46,6 +46,63 @@ fn golden_pen_tool_holder_feed_out() {
         "J2|FN0|TB50,0|FU5940,4200|\\0,0|Z5940,4200|&100,100,100|FC0,1,2|FY1|FX7,2|!3,2|\
          M20,100|D50,100|&1,1,1|M6000,0|"
     );
+}
+
+#[test]
+fn golden_registration_auto_search() {
+    let page = ss_doc::Page::preset("letter").unwrap();
+    let reg = Registration::from_marks(&ss_doc::RegMarks::default(), &page, true);
+    let settings = JobSettings { media_mm: (page.width_mm, page.height_mm), registration: Some(reg), ..JobSettings::default() };
+    let job = encode(&[rect(30.0, 40.0, 40.0, 50.0)], &settings).unwrap();
+    // Marks 10 mm in from each edge: 195.9 × 259.4 mm between them; coordinates relative to the
+    // top-left mark.
+    assert_eq!(
+        text(&job.bytes),
+        "FN0|TB50,0|FU5588,4318|\\0,0|Z5588,4318|&100,100,100|FC18|FY0|FX10|!5|\
+         TB50,0|TB99|TB52,2|TB51,400|TB53,10|TB55,1|TB123,5188,3918,0,0|\
+         M600,400|D600,600|D800,600|D800,400|D600,400|&1,1,1|H|"
+    );
+    let end = job.registration_end.unwrap();
+    assert!(text(&job.bytes[..end]).ends_with("TB123,5188,3918,0,0|"));
+    let sim = simulate(&job.bytes);
+    assert!(sim.errors.is_empty() && sim.unknown.is_empty(), "{sim:?}");
+    let r = sim.registration.unwrap();
+    assert!(r.auto_search && (r.size_mm.0 - 195.9).abs() < 0.05 && (r.size_mm.1 - 259.4).abs() < 0.05);
+    assert_eq!((sim.reg_mark_length_mm, sim.reg_mark_thickness_mm), (Some(20.0), Some(0.5)));
+    // Back on the page, the cut lands where it was drawn.
+    let first = sim.strokes[0][0] + ss_geom::Vec2::new(reg.origin_mm.0, reg.origin_mm.1);
+    assert!(first.distance(Point::new(30.0, 40.0)) < 1e-9);
+}
+
+/// The values inkscape-silhouette sends for its default mark layout (origin 15 × 20 mm, marks
+/// 180 × 230 mm apart, 20 mm long, 0.5 mm thick), an independent reference for the encoding.
+#[test]
+fn registration_matches_inkscape_silhouette() {
+    let reg = Registration { origin_mm: (15.0, 20.0), size_mm: (180.0, 230.0), mark_length_mm: 20.0, mark_thickness_mm: 0.5, auto_search: true };
+    let s = JobSettings { media_mm: (215.9, 279.4), registration: Some(reg), ..JobSettings::default() };
+    let t = text(&encode(&[rect(20.0, 30.0, 25.0, 35.0)], &s).unwrap().bytes);
+    assert!(t.contains("|TB50,0|TB99|TB52,2|TB51,400|TB53,10|TB55,1|TB123,4600,3600,200,100|"), "{t}");
+    let manual = JobSettings { registration: Some(Registration { auto_search: false, ..reg }), ..s };
+    let t = text(&encode(&[rect(20.0, 30.0, 25.0, 35.0)], &manual).unwrap().bytes);
+    assert!(t.contains("|TB55,1|TB23,4600,3600|M"), "{t}");
+    assert_eq!(simulate(t.replace('|', "\x03").as_bytes()).registration.unwrap().search_from_mm, None);
+}
+
+#[test]
+fn registration_limits_geometry_to_the_marks() {
+    let page = ss_doc::Page::preset("letter").unwrap();
+    let reg = Registration::from_marks(&ss_doc::RegMarks::default(), &page, true);
+    let s = JobSettings { media_mm: (page.width_mm, page.height_mm), registration: Some(reg), ..JobSettings::default() };
+    // On the media but left of the marks.
+    let err = encode(&[rect(5.0, 50.0, 15.0, 60.0)], &s).unwrap_err();
+    assert_eq!(err, EncodeError::OutsideRegistration { count: 1 });
+    let clip = JobSettings { off_media: OffMedia::Clip, ..s.clone() };
+    let sim = simulate(&encode(&[rect(5.0, 50.0, 15.0, 60.0)], &clip).unwrap().bytes);
+    assert!(sim.strokes.iter().flatten().all(|p| p.x >= 0.0 && p.y >= 0.0));
+    // Top and bottom keep 5 mm each inside the marks, the right side all 10 mm.
+    assert!((cut_length(&sim.strokes) - 20.0).abs() < 1e-6);
+    let off = JobSettings { registration: Some(Registration { size_mm: (300.0, 100.0), ..reg }), ..s };
+    assert!(matches!(encode(&[rect(30.0, 30.0, 40.0, 40.0)], &off), Err(EncodeError::InvalidSetting(_))));
 }
 
 #[test]

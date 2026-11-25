@@ -5,6 +5,16 @@ use ss_geom::Point;
 
 use crate::{ESC, ETX, from_units};
 
+/// A registration mark search seen in the stream (`TB123` or `TB23`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SimRegistration {
+    pub auto_search: bool,
+    /// Distance between the marks, mm (width across, height down).
+    pub size_mm: (f64, f64),
+    /// Where the automatic search starts, mm (x, y).
+    pub search_from_mm: Option<(f64, f64)>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Simulation {
     /// Tool-down polylines in millimetres (x across, y down).
@@ -18,6 +28,11 @@ pub struct Simulation {
     pub tool_holder: Option<u8>,
     /// Media size from `FU`, in mm (width, height).
     pub media_mm: Option<(f64, f64)>,
+    /// Registration mark arm length (`TB51`) and thickness (`TB53`), mm.
+    pub reg_mark_length_mm: Option<f64>,
+    pub reg_mark_thickness_mm: Option<f64>,
+    /// Mark search; tool coordinates after it are relative to the top-left mark.
+    pub registration: Option<SimRegistration>,
     pub homed: bool,
     /// Every command, without ETX; control sequences as `ESC+<hex>`.
     pub commands: Vec<String>,
@@ -131,7 +146,24 @@ impl Simulation {
                 Some(v) => self.tool_holder = u8::try_from(v).ok(),
                 None => bad(self),
             },
-            "FN" | "TB" | "&" | "\\" | "Z" | "FM" | "FO" | "FE" | "FF" | "FG" => {
+            "TB" => match numbers(args).as_deref() {
+                Some([51.0, len]) => self.reg_mark_length_mm = Some(from_units(*len)),
+                Some([53.0, t]) => self.reg_mark_thickness_mm = Some(from_units(*t)),
+                Some([123.0, h, w, top, left]) => {
+                    self.registration = Some(SimRegistration {
+                        auto_search: true,
+                        size_mm: (from_units(*w), from_units(*h)),
+                        search_from_mm: Some((from_units(*left), from_units(*top))),
+                    });
+                }
+                Some([23.0, h, w]) => {
+                    self.registration =
+                        Some(SimRegistration { auto_search: false, size_mm: (from_units(*w), from_units(*h)), search_from_mm: None });
+                }
+                Some([123.0 | 23.0 | 51.0 | 53.0, ..]) | None => bad(self),
+                Some(_) => {}
+            },
+            "FN" | "&" | "\\" | "Z" | "FM" | "FO" | "FE" | "FF" | "FG" => {
                 if numbers(args).is_none() {
                     bad(self);
                 }

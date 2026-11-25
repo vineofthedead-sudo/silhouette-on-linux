@@ -152,10 +152,11 @@ struct Summary {
     shapes: usize,
     local_found: usize,
     local_fit: usize,
+    images: usize,
 }
 
 fn parse_all(files: &[PathBuf], require_shapes: bool) -> Summary {
-    let mut sum = Summary { files: 0, shapes: 0, local_found: 0, local_fit: 0 };
+    let mut sum = Summary { files: 0, shapes: 0, local_found: 0, local_fit: 0, images: 0 };
     let mut failures = Vec::new();
     for path in files {
         let data = std::fs::read(path).unwrap();
@@ -198,6 +199,17 @@ fn parse_all(files: &[PathBuf], require_shapes: bool) -> Summary {
         if converted.objects.len() != f.shapes.len() {
             failures.push(format!("{}: to_document dropped shapes", path.display()));
         }
+        for o in &converted.objects {
+            let ss_doc::ObjectKind::Image(img) = &o.kind else { continue };
+            sum.images += 1;
+            // Placed images keep their pixel aspect ratio and are never cut.
+            let (b, px) = (o.bounds().unwrap(), f64::from(img.width_px) / f64::from(img.height_px));
+            let (ex, ey) = (o.transform * ss_geom::Point::new(1.0, 0.0) - o.transform * ss_geom::Point::ZERO, o.transform * ss_geom::Point::new(0.0, 1.0) - o.transform * ss_geom::Point::ZERO);
+            let shown = (ex.hypot() * img.placement().width()) / (ey.hypot() * img.placement().height());
+            if (shown / px).ln().abs() > 0.02 || !o.cut_paths().is_empty() || !b.width().is_finite() {
+                failures.push(format!("{}: image {} aspect {shown:.3} vs {px:.3}", path.display(), o.name));
+            }
+        }
         sum.files += 1;
         sum.shapes += f.shapes.len();
     }
@@ -225,7 +237,11 @@ fn user_fixtures_parse() {
     let files = studio_files(&dir);
     assert!(!files.is_empty());
     let s = parse_all(&files, true);
-    eprintln!("fixtures: {} files, {} shapes, local outline found {} fits {}", s.files, s.shapes, s.local_found, s.local_fit);
+    eprintln!(
+        "fixtures: {} files, {} shapes, local outline found {} fits {}, placed images {}",
+        s.files, s.shapes, s.local_found, s.local_fit, s.images
+    );
+    assert!(s.images > 0, "the fixture corpus contains placed print-and-cut images");
     // The page outline is authoritative. The local outline is a cross-check: where it is found,
     // an affine map must carry it onto the page outline.
     assert!(s.local_found * 10 >= s.shapes * 9, "local outline found for {}/{}", s.local_found, s.shapes);

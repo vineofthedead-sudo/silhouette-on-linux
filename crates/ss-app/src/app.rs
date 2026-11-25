@@ -4,15 +4,18 @@ use std::path::{Path, PathBuf};
 
 use egui::{Key, KeyboardShortcut, Modifiers, ViewportCommand};
 use ss_config::{AppPaths, Settings, Theme, Units};
-use ss_doc::{Align, CutAction, Document, Editor, LayerId, Object, Page};
-use ss_geom::Vec2;
+use ss_doc::{Align, CutAction, Document, Editor, ImageData, LayerId, Object, ObjectId, ObjectKind, Page, TextData};
+use ss_geom::{Affine, Point, Vec2};
 use ss_geom::offset::Join;
 
 use crate::canvas::{Canvas, Tool};
 use crate::panels;
 use crate::send::SendPanel;
 
-const OPEN_EXTENSIONS: &[&str] = &["studio3", "studio", "svg", "svgz", "dxf", "ssrs"];
+const OPEN_EXTENSIONS: &[&str] = &["studio3", "studio", "svg", "svgz", "dxf", "craft", "ssrs"];
+const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg"];
+/// Pixel density assumed for placed images, which carry no reliable physical size.
+const IMAGE_DPI: f64 = 96.0;
 const PASTE_OFFSET_MM: f64 = 5.0;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -25,6 +28,10 @@ pub enum Action {
     SaveAs,
     ExportSvg,
     ExportDxf,
+    ExportCraft,
+    PlaceImage,
+    SetBackground,
+    ClearBackground,
     Quit,
     Undo,
     Redo,
@@ -43,6 +50,11 @@ pub enum Action {
     Subtract,
     Intersect,
     OffsetDialog,
+    GroupByColor,
+    ConvertTextToPaths,
+    /// Opens the text dialog for a new text object with its top-left corner at (x, y) mm.
+    NewText(f64, f64),
+    EditText,
     FlipH,
     FlipV,
     Rotate(f64),
@@ -73,6 +85,14 @@ struct OffsetDialog {
     join: Join,
 }
 
+struct TextDialog {
+    /// The text object being edited, or `None` for a new one.
+    target: Option<ObjectId>,
+    at: Point,
+    data: TextData,
+    error: Option<String>,
+}
+
 pub struct StudioApp {
     paths: Option<AppPaths>,
     settings: Settings,
@@ -89,6 +109,10 @@ pub struct StudioApp {
     force_discard: bool,
     allow_close: bool,
     offset: Option<OffsetDialog>,
+    text: Option<TextDialog>,
+    /// Loaded on first use; scanning the system fonts takes a moment.
+    fonts: Option<(ss_text::FontLibrary, Vec<String>)>,
+    last_text: TextData,
     about: bool,
     last_title: String,
 }
@@ -157,6 +181,9 @@ impl StudioApp {
             force_discard: false,
             allow_close: false,
             offset: None,
+            text: None,
+            fonts: None,
+            last_text: TextData { font_family: "DejaVu Sans".into(), ..TextData::default() },
             about: false,
             last_title: String::new(),
         };
@@ -219,6 +246,7 @@ impl StudioApp {
             .add_filter("Silhouette Studio", &["studio3", "studio"])
             .add_filter("SVG", &["svg", "svgz"])
             .add_filter("DXF", &["dxf"])
+            .add_filter("Craft project", &["craft"])
             .add_filter("Project", &[ss_doc::NATIVE_EXTENSION]);
         if let Some(dir) = self.settings.recent_files.first().and_then(|f| f.parent()) {
             d = d.set_directory(dir);
@@ -299,6 +327,92 @@ impl StudioApp {
         }
     }
 
+    fn place_image(&mut self) {
+        let Some(path) = rfd::FileDialog::new().set_title("Place image").add_filter("Images", IMAGE_EXTENSIONS).pick_file() else {
+            return;
+        };
+        let mut img = match load_image(&path) {
+            Ok(img) => img,
+            Err(e) => {
+                self.status = format!("Could not load {}: {e}", display_name(&path));
+                return;
+            }
+        };
+        let page = &self.editor.doc.page;
+        let m = page.margin_mm;
+        let (mut w, mut h) = (f64::from(img.width_px) * 25.4 / IMAGE_DPI, f64::from(img.height_px) * 25.4 / IMAGE_DPI);
+        let fit = ((page.width_mm - 2.0 * m) / w).min((page.height_mm - 2.0 * m) / h).min(1.0);
+        if fit > 0.0 {
+            w *= fit;
+            h *= fit;
+        }
+        img.rect = [0.0, 0.0, w, h];
+        let name = path.file_stem().map_or("Image".into(), |s| s.to_string_lossy().into_owned());
+        let mut o = Object::image(name, self.active_layer, img);
+        o.transform = Affine::translate(Vec2::new(m, m));
+        self.editor.add(o);
+        self.status = format!("Placed {}", display_name(&path));
+    }
+
+    fn fonts(&mut self) -> &(ss_text::FontLibrary, Vec<String>) {
+        self.fonts.get_or_insert_with(|| {
+            let lib = ss_text::FontLibrary::system();
+            let families = lib.families();
+            (lib, families)
+        })
+    }
+
+    fn open_text_dialog(&mut self, target: Option<ObjectId>, at: Point, mut data: TextData) {
+        let (lib, families) = self.fonts();
+        if !families.contains(&data.font_family)
+            && let Some(face) = lib.resolve(&data.font_family, data.bold, data.italic)
+        {
+            data.font_family = face.family;
+        }
+        let error = lib.is_empty().then(|| ss_text::TextError::NoFonts.to_string());
+        self.text = Some(TextDialog { target, at, data, error });
+    }
+
+    /// Lays out the dialog's text and adds or updates the object. Returns false on failure.
+    fn commit_text(&mut self) -> bool {
+        let Some(dlg) = &self.text else { return true };
+        let (target, at, data) = (dlg.target, dlg.at, dlg.data.clone());
+        if data.text.trim().is_empty() {
+            if let Some(d) = &mut self.text {
+                d.error = Some("Type some text first".into());
+            }
+            return false;
+        }
+        let layout = match self.fonts().0.layout(&data) {
+            Ok(l) => l,
+            Err(e) => {
+                if let Some(d) = &mut self.text {
+                    d.error = Some(e.to_string());
+                }
+                return false;
+            }
+        };
+        let r = match target {
+            Some(id) => self.editor.update_text(id, data.clone(), layout.outlines),
+            None => {
+                let mut o = Object::text(self.active_layer, data.clone(), layout.outlines);
+                o.transform = Affine::translate(at.to_vec2());
+                self.editor.add(o);
+                Ok(())
+            }
+        };
+        self.report(r);
+        self.status = if layout.missing_glyphs > 0 {
+            format!("{} has no glyph for {} character(s)", layout.face.family, layout.missing_glyphs)
+        } else if layout.face.family != data.font_family {
+            format!("Using {} in place of {}", layout.face.family, data.font_family)
+        } else {
+            format!("Text set in {}", layout.face.family)
+        };
+        self.last_text = TextData { text: String::new(), ..data };
+        true
+    }
+
     /// Returns false (and asks first) when unsaved changes would be lost.
     fn may_discard(&mut self, a: Action) -> bool {
         if self.editor.dirty && !std::mem::take(&mut self.force_discard) {
@@ -346,6 +460,25 @@ impl StudioApp {
             }
             Action::ExportSvg => self.export("svg", "SVG"),
             Action::ExportDxf => self.export("dxf", "DXF"),
+            Action::ExportCraft => self.export("craft", "Craft project"),
+            Action::PlaceImage => self.place_image(),
+            Action::SetBackground => {
+                if let Some(path) = rfd::FileDialog::new().set_title("Background image").add_filter("Images", IMAGE_EXTENSIONS).pick_file() {
+                    match load_image(&path) {
+                        Ok(mut img) => {
+                            let p = self.editor.doc.page.rect();
+                            img.rect = [p.x0, p.y0, p.x1, p.y1];
+                            let r = self.editor.set_background(Some(img));
+                            self.report(r);
+                        }
+                        Err(e) => self.status = format!("Could not load {}: {e}", display_name(&path)),
+                    }
+                }
+            }
+            Action::ClearBackground => {
+                let r = self.editor.set_background(None);
+                self.report(r);
+            }
             Action::Quit => {
                 if self.may_discard(a) {
                     self.allow_close = true;
@@ -428,6 +561,28 @@ impl StudioApp {
                     self.status = ss_doc::EditError::EmptySelection.to_string();
                 } else {
                     self.offset = Some(OffsetDialog { distance: 2.0, join: Join::Round });
+                }
+            }
+            Action::GroupByColor => match self.editor.group_by_color() {
+                Ok(n) => self.status = format!("Made {n} colour group(s)"),
+                Err(e) => self.status = e.to_string(),
+            },
+            Action::ConvertTextToPaths => match self.editor.convert_text_to_paths() {
+                Ok(n) => self.status = format!("Converted {n} text object(s) to paths"),
+                Err(e) => self.status = e.to_string(),
+            },
+            Action::NewText(x, y) => {
+                let data = self.last_text.clone();
+                self.open_text_dialog(None, Point::new(x, y), data);
+            }
+            Action::EditText => {
+                let found = self.editor.selection.first().and_then(|id| self.editor.doc.find(*id)).and_then(|o| match &o.kind {
+                    ObjectKind::Text { data, .. } => Some((o.id, data.clone())),
+                    _ => None,
+                });
+                match found {
+                    Some((id, data)) => self.open_text_dialog(Some(id), Point::ZERO, data),
+                    None => self.status = "Select a text object to edit".into(),
                 }
             }
             Action::FlipH => {
@@ -547,12 +702,14 @@ impl StudioApp {
                     }
                 });
                 item(ui, "Import…", Action::Import, true, actions);
+                item(ui, "Place image…", Action::PlaceImage, true, actions);
                 ui.separator();
                 item(ui, "Save", Action::Save, true, actions);
                 item(ui, "Save as…", Action::SaveAs, true, actions);
                 ui.separator();
                 item(ui, "Export SVG…", Action::ExportSvg, true, actions);
                 item(ui, "Export DXF…", Action::ExportDxf, true, actions);
+                item(ui, "Export Craft project…", Action::ExportCraft, true, actions);
                 ui.separator();
                 item(ui, "Quit", Action::Quit, true, actions);
             });
@@ -581,6 +738,10 @@ impl StudioApp {
                 item(ui, "Subtract", Action::Subtract, many, actions);
                 item(ui, "Intersect", Action::Intersect, many, actions);
                 item(ui, "Offset…", Action::OffsetDialog, any, actions);
+                ui.separator();
+                item(ui, "Group by colour", Action::GroupByColor, true, actions);
+                item(ui, "Edit text…", Action::EditText, self.editor.selection.len() == 1, actions);
+                item(ui, "Convert text to path", Action::ConvertTextToPaths, any, actions);
                 ui.separator();
                 item(ui, "Flip horizontally", Action::FlipH, any, actions);
                 item(ui, "Flip vertically", Action::FlipV, any, actions);
@@ -706,6 +867,7 @@ impl StudioApp {
                 }
             }
         }
+        self.text_dialog(ctx);
         if self.about {
             let r = egui::Modal::new(egui::Id::unique("about")).show(ctx, |ui| {
                 ui.heading("Silhouette Studio for Linux");
@@ -717,6 +879,68 @@ impl StudioApp {
             if r.inner || r.should_close() {
                 self.about = false;
             }
+        }
+    }
+
+    fn text_dialog(&mut self, ctx: &egui::Context) {
+        let Some(mut dlg) = self.text.take() else { return };
+        let families = self.fonts.as_ref().map(|(_, f)| f.clone()).unwrap_or_default();
+        let (f, unit) = units(self.settings.units);
+        let mut done = None;
+        egui::Modal::new(egui::Id::unique("text-dialog")).show(ctx, |ui| {
+            ui.heading(if dlg.target.is_some() { "Edit text" } else { "New text" });
+            ui.add(egui::TextEdit::multiline(&mut dlg.data.text).desired_rows(3).desired_width(320.0).hint_text("Type here"));
+            egui::Grid::new("text-style").num_columns(2).spacing([8.0, 4.0]).show(ui, |ui| {
+                ui.label("Font");
+                egui::ComboBox::from_id_salt("text-font").selected_text(&dlg.data.font_family).width(220.0).height(320.0).show_ui(ui, |ui| {
+                    for fam in &families {
+                        ui.selectable_value(&mut dlg.data.font_family, fam.clone(), fam);
+                    }
+                });
+                ui.end_row();
+                ui.label("Style");
+                ui.horizontal(|ui| {
+                    ui.checkbox(&mut dlg.data.bold, "Bold");
+                    ui.checkbox(&mut dlg.data.italic, "Italic");
+                });
+                ui.end_row();
+                ui.label("Size");
+                let mut size = dlg.data.size_mm * f;
+                if ui.add(egui::DragValue::new(&mut size).speed(0.1 * f).range((0.5 * f)..=(500.0 * f)).suffix(format!(" {unit}"))).on_hover_text("Em size of the font").changed() {
+                    dlg.data.size_mm = size / f;
+                }
+                ui.end_row();
+                ui.label("Letter spacing");
+                let mut ls = dlg.data.letter_spacing_mm * f;
+                if ui.add(egui::DragValue::new(&mut ls).speed(0.05 * f).range((-50.0 * f)..=(50.0 * f)).suffix(format!(" {unit}"))).changed() {
+                    dlg.data.letter_spacing_mm = ls / f;
+                }
+                ui.end_row();
+                ui.label("Line spacing");
+                ui.add(egui::DragValue::new(&mut dlg.data.line_spacing).speed(0.01).range(0.5..=5.0).suffix(" ×"));
+                ui.end_row();
+            });
+            if let Some(e) = &dlg.error {
+                ui.colored_label(ui.visuals().error_fg_color, e);
+            }
+            ui.horizontal(|ui| {
+                if ui.button("OK").clicked() {
+                    done = Some(true);
+                }
+                if ui.button("Cancel").clicked() {
+                    done = Some(false);
+                }
+            });
+        });
+        self.text = Some(dlg);
+        match done {
+            Some(true) => {
+                if self.commit_text() {
+                    self.text = None;
+                }
+            }
+            Some(false) => self.text = None,
+            None => {}
         }
     }
 
@@ -750,6 +974,20 @@ impl StudioApp {
             },
         );
     }
+}
+
+/// Reads a PNG or JPEG file. The placement rectangle is left empty for the caller to set.
+fn load_image(path: &Path) -> Result<ImageData, String> {
+    let encoded = std::fs::read(path).map_err(|e| e.to_string())?;
+    let reader = image::ImageReader::new(std::io::Cursor::new(&encoded)).with_guessed_format().map_err(|e| e.to_string())?;
+    if !matches!(reader.format(), Some(image::ImageFormat::Png | image::ImageFormat::Jpeg)) {
+        return Err("only PNG and JPEG images are supported".into());
+    }
+    let (width_px, height_px) = reader.into_dimensions().map_err(|e| e.to_string())?;
+    if width_px == 0 || height_px == 0 {
+        return Err("the image is empty".into());
+    }
+    Ok(ImageData { encoded, width_px, height_px, rect: [0.0; 4] })
 }
 
 fn display_name(p: &Path) -> String {
@@ -808,7 +1046,7 @@ impl eframe::App for StudioApp {
                 }
                 Tab::Layers => panels::layers(ui, &mut self.editor, &mut self.active_layer),
                 Tab::Page => {
-                    let change = panels::page(ui, &mut self.editor, &mut self.settings);
+                    let change = panels::page(ui, &mut self.editor, &mut self.settings, &mut actions, &mut self.status);
                     if change.settings {
                         self.save_settings();
                     }
@@ -835,5 +1073,30 @@ impl eframe::App for StudioApp {
 
     fn on_exit(&mut self) {
         self.save_settings();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn load_image_accepts_png_and_jpeg_only() {
+        let dir = std::env::temp_dir().join(format!("ss-app-load-image-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let png = dir.join("a.png");
+        let jpg = dir.join("b.jpg");
+        let txt = dir.join("c.png");
+        image::RgbImage::new(7, 3).save(&png).unwrap();
+        image::RgbImage::new(5, 9).save(&jpg).unwrap();
+        std::fs::write(&txt, b"not an image").unwrap();
+
+        let a = load_image(&png).unwrap();
+        assert_eq!((a.width_px, a.height_px, a.mime()), (7, 3, "image/png"));
+        let b = load_image(&jpg).unwrap();
+        assert_eq!((b.width_px, b.height_px, b.mime()), (5, 9, "image/jpeg"));
+        assert!(load_image(&txt).is_err());
+        assert!(load_image(&dir.join("missing.png")).is_err());
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

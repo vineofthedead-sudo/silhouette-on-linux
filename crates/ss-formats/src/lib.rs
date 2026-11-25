@@ -1,6 +1,8 @@
-//! File formats: Silhouette `.studio` / `.studio3` (read), SVG and DXF (read/write) and the
-//! native `.ssrs` project format (read/write).
+//! File formats: Silhouette `.studio` / `.studio3` (read), SVG and DXF (read/write), the
+//! companion app's `.craft` projects (read/write) and the native `.ssrs` project format
+//! (read/write).
 
+pub mod craft;
 pub mod dxf_io;
 pub mod studio;
 pub mod svg;
@@ -15,6 +17,7 @@ pub enum FileKind {
     Svg,
     Dxf,
     Native,
+    Craft,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -27,6 +30,8 @@ pub enum FormatError {
     Svg(#[from] svg::SvgError),
     #[error(transparent)]
     Dxf(#[from] dxf_io::DxfError),
+    #[error(transparent)]
+    Craft(#[from] craft::CraftError),
     #[error("invalid project file: {0}")]
     Native(#[from] serde_json::Error),
     #[error("unrecognised file type")]
@@ -64,6 +69,9 @@ pub fn detect(data: &[u8], path: Option<&Path>) -> Option<FileKind> {
     if head.contains(&format!("\"{}\"", ss_doc::NATIVE_FORMAT)) {
         return Some(FileKind::Native);
     }
+    if craft::detect(&head) {
+        return Some(FileKind::Craft);
+    }
     if head.contains("<svg") {
         return Some(FileKind::Svg);
     }
@@ -72,6 +80,7 @@ pub fn detect(data: &[u8], path: Option<&Path>) -> Option<FileKind> {
         Some("dxf") => Some(FileKind::Dxf),
         Some("svg") | Some("svgz") => Some(FileKind::Svg),
         Some(ss_doc::NATIVE_EXTENSION) => Some(FileKind::Native),
+        Some(craft::EXTENSION) => Some(FileKind::Craft),
         _ if head.trim_start().starts_with('0') && head.contains("section") => Some(FileKind::Dxf),
         _ => None,
     }
@@ -100,6 +109,12 @@ pub fn open_bytes(data: &[u8], path: Option<&Path>) -> Result<Document, FormatEr
         FileKind::Svg => Ok(svg::import(&strip_bom_utf8(data), &svg::SvgImportOptions { load_system_fonts: true })?),
         FileKind::Dxf => Ok(dxf_io::import(data)?),
         FileKind::Native => Ok(Document::from_json(&String::from_utf8_lossy(&strip_bom_utf8(data)))?),
+        FileKind::Craft => {
+            let p = craft::parse(&String::from_utf8_lossy(&strip_bom_utf8(data)))?;
+            // Scanning system fonts takes a moment; only do it when there is text to lay out.
+            let fonts = craft::has_text(&p).then(ss_text::FontLibrary::system);
+            Ok(craft::project_to_document(&p, fonts.as_ref()))
+        }
     }
 }
 
@@ -107,7 +122,7 @@ pub fn open(path: &Path) -> Result<Document, FormatError> {
     open_bytes(&std::fs::read(path)?, Some(path))
 }
 
-/// Saves by extension: `.svg`, `.dxf`, otherwise the native project format.
+/// Saves by extension: `.svg`, `.svgz`, `.dxf`, `.craft`, otherwise the native project format.
 pub fn save(doc: &Document, path: &Path) -> Result<(), FormatError> {
     let ext = path.extension().map(|e| e.to_string_lossy().to_ascii_lowercase());
     let bytes = match ext.as_deref() {
@@ -119,6 +134,10 @@ pub fn save(doc: &Document, path: &Path) -> Result<(), FormatError> {
             e.finish()?
         }
         Some("dxf") => dxf_io::export(doc, 0.01)?,
+        Some(craft::EXTENSION) => {
+            let title = path.file_stem().map(|s| s.to_string_lossy());
+            craft::export(doc, title.as_deref())?.into_bytes()
+        }
         _ => doc.to_json()?.into_bytes(),
     };
     let tmp = path.with_extension("tmp-save");
@@ -139,6 +158,8 @@ mod tests {
         assert_eq!(detect(&utf16, None), Some(FileKind::Svg));
         assert_eq!(detect(b"  0\nSECTION\n", Some(Path::new("a.dxf"))), Some(FileKind::Dxf));
         assert_eq!(detect(b"hello", None), None);
+        assert_eq!(detect(br#"{"version": 2, "app_name": "Studio to SVG", "mat_width_in": 12.0}"#, None), Some(FileKind::Craft));
+        assert_eq!(detect(b"{}", Some(Path::new("x.craft"))), Some(FileKind::Craft));
     }
 
     #[test]
@@ -148,7 +169,7 @@ mod tests {
         doc.objects.push(ss_doc::Object::path("r", l, ss_geom::Shape::to_path(&ss_geom::Rect::new(1.0, 2.0, 3.0, 4.0), 0.0)));
         let dir = std::env::temp_dir().join(format!("ssfmt-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        for ext in ["ssrs", "svg", "svgz", "dxf"] {
+        for ext in ["ssrs", "svg", "svgz", "dxf", "craft"] {
             let p = dir.join(format!("t.{ext}"));
             save(&doc, &p).unwrap();
             let back = open(&p).unwrap();

@@ -2,7 +2,7 @@
 
 use egui::{Color32, DragValue, Ui};
 use ss_config::{Settings, Units};
-use ss_doc::{CutAction, Editor, Layer, LayerId, ObjectKind, Page, Rgba};
+use ss_doc::{CutAction, Editor, Layer, LayerId, ObjectKind, Page, RegMarks, Rgba};
 use ss_geom::{Affine, Rect, Vec2};
 
 use crate::app::{Action, units};
@@ -144,6 +144,16 @@ pub fn properties(ui: &mut Ui, editor: &mut Editor, bounds: Option<Rect>, unit: 
                 report(status, r);
             }
         });
+        if kind == "Text" {
+            ui.horizontal(|ui| {
+                if ui.button("Edit text…").clicked() {
+                    actions.push(Action::EditText);
+                }
+                if ui.button("Convert to path").on_hover_text("Turn the letters into ordinary paths for welding and editing").clicked() {
+                    actions.push(Action::ConvertTextToPaths);
+                }
+            });
+        }
     } else {
         ui.label(format!("{n} objects selected"));
     }
@@ -396,7 +406,7 @@ pub struct PageChange {
     pub settings: bool,
 }
 
-pub fn page(ui: &mut Ui, editor: &mut Editor, settings: &mut Settings) -> PageChange {
+pub fn page(ui: &mut Ui, editor: &mut Editor, settings: &mut Settings, actions: &mut Vec<Action>, status: &mut String) -> PageChange {
     let mut change = PageChange::default();
     let (f, unit) = units(settings.units);
     let decimals = if settings.units == Units::Inch { 3 } else { 1 };
@@ -469,6 +479,58 @@ pub fn page(ui: &mut Ui, editor: &mut Editor, settings: &mut Settings) -> PageCh
         if r.changed() {
             settings.grid_spacing_mm = g / f;
             change.settings = true;
+        }
+    });
+
+    ui.separator();
+    ui.heading("Print & Cut");
+    let marks = editor.doc.page.registration;
+    let mut on = marks.is_some();
+    if ui.checkbox(&mut on, "Registration marks").on_hover_text("Print the design with these marks, then let the cutter find them to line up the cut").changed() {
+        report(status, editor.set_registration(on.then(RegMarks::default)));
+    }
+    if let Some(m) = marks {
+        let mut draft = Draft::new(ui, "regmarks", [m.inset_mm * f, m.length_mm * f, m.thickness_mm * f, m.square_mm * f]);
+        let fine = if settings.units == Units::Inch { 3 } else { 2 };
+        egui::Grid::new("regmarks").num_columns(2).spacing([6.0, 4.0]).show(ui, |ui| {
+            ui.label("Inset");
+            draft.field(ui, 0, 0.1 * f, &suffix, decimals);
+            ui.end_row();
+            ui.label("Length");
+            draft.field(ui, 1, 0.1 * f, &suffix, decimals);
+            ui.end_row();
+            ui.label("Thickness");
+            draft.field(ui, 2, 0.01 * f, &suffix, fine);
+            ui.end_row();
+            ui.label("Square");
+            draft.field(ui, 3, 0.1 * f, &suffix, decimals);
+            ui.end_row();
+        });
+        if let Some(v) = draft.finish(ui) {
+            let new = RegMarks { inset_mm: v[0] / f, length_mm: v[1] / f, thickness_mm: v[2] / f, square_mm: v[3] / f };
+            if new != m {
+                report(status, editor.set_registration(Some(new)));
+            }
+        }
+        ui.weak("Keep artwork and cut lines clear of the marks.");
+    }
+
+    ui.separator();
+    ui.heading("Background");
+    match &editor.doc.background {
+        Some(bg) => {
+            ui.label(format!("Image {} × {} px (shown, never cut)", bg.width_px, bg.height_px));
+        }
+        None => {
+            ui.weak("No background image.");
+        }
+    }
+    ui.horizontal(|ui| {
+        if ui.button("Choose image…").clicked() {
+            actions.push(Action::SetBackground);
+        }
+        if ui.add_enabled(editor.doc.background.is_some(), egui::Button::new("Remove")).clicked() {
+            actions.push(Action::ClearBackground);
         }
     });
     change

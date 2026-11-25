@@ -14,9 +14,12 @@ pub mod plan;
 pub mod reply;
 pub mod sim;
 
-pub use job::{EncodeError, EndAction, Job, JobSettings, JobStats, OffMedia, Perforation, Tool, ToolSettings, document_paths, encode};
-pub use reply::{Status, parse_firmware, parse_status};
-pub use sim::{Simulation, simulate};
+pub use job::{
+    EncodeError, EndAction, Job, JobSettings, JobStats, OffMedia, Perforation, Registration, Tool, ToolSettings, document_paths,
+    encode,
+};
+pub use reply::{Status, parse_firmware, parse_registration, parse_status};
+pub use sim::{SimRegistration, Simulation, simulate};
 
 /// Command terminator.
 pub const ETX: u8 = 0x03;

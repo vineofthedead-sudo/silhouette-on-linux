@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use egui::{Color32, Key, PointerButton, Pos2, Sense, Shape, Stroke, StrokeKind, pos2, vec2};
 use ss_config::Settings;
-use ss_doc::{CutAction, Editor, LayerId, Object, ObjectId, ObjectKind};
+use ss_doc::{CutAction, Editor, ImageData, LayerId, Object, ObjectId, ObjectKind, RegMarks};
 use ss_geom::fit::{FitOptions, fit_contour};
 use ss_geom::flatten::{Polyline, flatten};
 use ss_geom::{Affine, BezPath, Point, Rect, Shape as _, Vec2};
@@ -24,6 +24,8 @@ const MAX_ZOOM: f32 = 400.0;
 pub const ACTUAL_SIZE_ZOOM: f32 = 96.0 / 25.4;
 pub const SELECTION_COLOR: Color32 = Color32::from_rgb(0x1e, 0x88, 0xe5);
 const OVERLAY_COLOR: Color32 = Color32::from_rgb(0x00, 0xa0, 0x50);
+/// Larger images are downscaled before upload; GPUs commonly cap texture sides at 8192.
+const MAX_TEXTURE_SIDE: u32 = 4096;
 /// Scale handles as fractions of the selection box, clockwise from the top-left corner.
 const HANDLES: [(f64, f64); 8] = [(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.0, 0.5), (1.0, 1.0), (0.5, 1.0), (0.0, 1.0), (0.0, 0.5)];
 
@@ -35,10 +37,11 @@ pub enum Tool {
     Line,
     Polyline,
     Freehand,
+    Text,
 }
 
 impl Tool {
-    pub const ALL: [Tool; 6] = [Tool::Select, Tool::Rectangle, Tool::Ellipse, Tool::Line, Tool::Polyline, Tool::Freehand];
+    pub const ALL: [Tool; 7] = [Tool::Select, Tool::Rectangle, Tool::Ellipse, Tool::Line, Tool::Polyline, Tool::Freehand, Tool::Text];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -48,6 +51,7 @@ impl Tool {
             Tool::Line => "Line",
             Tool::Polyline => "Polyline",
             Tool::Freehand => "Freehand",
+            Tool::Text => "Text",
         }
     }
 
@@ -59,6 +63,7 @@ impl Tool {
             Tool::Line => Key::L,
             Tool::Polyline => Key::P,
             Tool::Freehand => Key::F,
+            Tool::Text => Key::T,
         }
     }
 
@@ -70,6 +75,7 @@ impl Tool {
             Tool::Line => "Drag to draw a line; Shift snaps to 45°",
             Tool::Polyline => "Click to add points; click the first point to close, double-click or Enter to finish",
             Tool::Freehand => "Drag to draw; end near the start to close the shape",
+            Tool::Text => "Click where the top-left corner of the text should go",
         }
     }
 }
@@ -149,6 +155,8 @@ pub struct Canvas {
     pub cursor_mm: Option<Point>,
     /// Tool paths reported by the virtual cutter, drawn on top of the design.
     pub overlay: Vec<Vec<Point>>,
+    /// Uploaded image textures by content fingerprint; `None` when the image could not be decoded.
+    textures: HashMap<u64, Option<egui::TextureHandle>>,
 }
 
 impl Default for Canvas {
@@ -165,6 +173,7 @@ impl Default for Canvas {
             cache: HashMap::new(),
             cursor_mm: None,
             overlay: Vec::new(),
+            textures: HashMap::new(),
         }
     }
 }
@@ -215,6 +224,41 @@ fn inside(p: Point, poly: &[Point]) -> bool {
         j = i;
     }
     c
+}
+
+/// Cheap identity for an embedded image. Hashing every byte each frame would be too slow for
+/// multi-megabyte photos, so only the length and samples from the start, middle and end are used.
+fn image_key(img: &ImageData) -> u64 {
+    let b = &img.encoded;
+    let mut h = DefaultHasher::new();
+    (b.len(), img.width_px, img.height_px).hash(&mut h);
+    let mid = b.len() / 2;
+    b[..b.len().min(1024)].hash(&mut h);
+    b[mid.saturating_sub(512)..(mid + 512).min(b.len())].hash(&mut h);
+    b[b.len().saturating_sub(4096)..].hash(&mut h);
+    h.finish()
+}
+
+fn decode_image(img: &ImageData) -> Option<egui::ColorImage> {
+    let mut decoded = image::load_from_memory(&img.encoded).ok()?;
+    if decoded.width() > MAX_TEXTURE_SIDE || decoded.height() > MAX_TEXTURE_SIDE {
+        decoded = decoded.thumbnail(MAX_TEXTURE_SIDE, MAX_TEXTURE_SIDE);
+    }
+    let rgba = decoded.to_rgba8();
+    Some(egui::ColorImage::from_rgba_unmultiplied([rgba.width() as usize, rgba.height() as usize], rgba.as_raw()))
+}
+
+/// The three registration marks as axis-aligned filled rectangles (page mm).
+fn regmark_rects(m: &RegMarks, page: &ss_doc::Page) -> [Rect; 5] {
+    let a = m.area(page);
+    let (l, t, s) = (m.length_mm, m.thickness_mm, m.square_mm);
+    [
+        Rect::new(a.x0, a.y0, a.x0 + s, a.y0 + s),
+        Rect::new(a.x1 - l, a.y0, a.x1, a.y0 + t),
+        Rect::new(a.x1 - t, a.y0, a.x1, a.y0 + l),
+        Rect::new(a.x0, a.y1 - l, a.x0 + t, a.y1),
+        Rect::new(a.x0, a.y1 - t, a.x0 + l, a.y1),
+    ]
 }
 
 pub fn color32(c: ss_doc::Rgba) -> Color32 {
@@ -270,6 +314,37 @@ impl Canvas {
         if self.cache.len() != seen.len() {
             self.cache.retain(|id, _| seen.contains(id));
         }
+    }
+
+    /// Uploads textures for the background and every visible image, and drops unused ones.
+    fn refresh_textures(&mut self, ctx: &egui::Context, editor: &Editor) {
+        let mut images: Vec<&ImageData> = editor.doc.background.iter().collect();
+        for o in editor.doc.visible_objects() {
+            images.extend(o.page_images().into_iter().map(|(img, _)| img));
+        }
+        let mut used = HashSet::with_capacity(images.len());
+        for img in images {
+            let key = image_key(img);
+            used.insert(key);
+            self.textures.entry(key).or_insert_with(|| {
+                decode_image(img).map(|ci| ctx.load_texture(format!("image-{key:x}"), ci, egui::TextureOptions::LINEAR))
+            });
+        }
+        self.textures.retain(|k, _| used.contains(k));
+    }
+
+    fn image_shape(&self, origin: Pos2, img: &ImageData, m: Affine) -> Option<Shape> {
+        let tex = self.textures.get(&image_key(img))?.as_ref()?;
+        let r = img.placement();
+        let corners = [(r.x0, r.y0), (r.x1, r.y0), (r.x1, r.y1), (r.x0, r.y1)].map(|(x, y)| self.view.to_screen(origin, m * Point::new(x, y)));
+        let uvs = [pos2(0.0, 0.0), pos2(1.0, 0.0), pos2(1.0, 1.0), pos2(0.0, 1.0)];
+        let mut mesh = egui::Mesh::with_texture(tex.id());
+        for (pos, uv) in corners.into_iter().zip(uvs) {
+            mesh.vertices.push(egui::epaint::Vertex { pos, uv, color: Color32::WHITE });
+        }
+        mesh.add_triangle(0, 1, 2);
+        mesh.add_triangle(0, 2, 3);
+        Some(Shape::mesh(mesh))
     }
 
     /// Topmost visible, unlocked object under `p`.
@@ -334,6 +409,7 @@ impl Canvas {
             self.view.fit(rect, r);
         }
         self.refresh_cache(editor);
+        self.refresh_textures(ui.ctx(), editor);
 
         // View: wheel pans, Ctrl+wheel or pinch zooms, middle drag or Space+drag pans.
         let (scroll, zoom_delta, mods, press, space, typing) = ui.input(|i| {
@@ -376,6 +452,14 @@ impl Canvas {
                 }
                 Tool::Polyline => self.polyline_tool(&resp, editor, origin, pointer_doc, settings, layer),
                 Tool::Freehand => self.freehand_tool(&resp, editor, origin, press_doc, pointer_doc, layer),
+                Tool::Text => {
+                    if resp.clicked()
+                        && let Some(p) = pointer_doc
+                    {
+                        let p = self.snap(p, settings);
+                        actions.push(Action::NewText(p.x, p.y));
+                    }
+                }
             }
         }
 
@@ -681,6 +765,11 @@ impl Canvas {
         let pr = egui::Rect::from_min_max(v.to_screen(origin, Point::ZERO), v.to_screen(origin, Point::new(page.width_mm, page.height_mm)));
         painter.rect_filled(pr.translate(vec2(3.0, 3.0)), 0.0, Color32::from_black_alpha(70));
         painter.rect_filled(pr, 0.0, Color32::WHITE);
+        if let Some(bg) = &editor.doc.background
+            && let Some(s) = self.image_shape(origin, bg, Affine::IDENTITY)
+        {
+            painter.add(s);
+        }
         if settings.show_grid && settings.grid_spacing_mm > 0.0 {
             let g = settings.grid_spacing_mm;
             if g as f32 * v.zoom >= 8.0 {
@@ -706,6 +795,13 @@ impl Canvas {
                 .map(|(x, y)| v.to_screen(origin, Point::new(x, y)));
             painter.extend(Shape::dashed_line(&corners, Stroke::new(1.0, Color32::from_rgb(230, 80, 80)), 6.0, 4.0));
         }
+        if let Some(marks) = &page.registration {
+            for r in regmark_rects(marks, page) {
+                let sr = egui::Rect::from_two_pos(v.to_screen(origin, Point::new(r.x0, r.y0)), v.to_screen(origin, Point::new(r.x1, r.y1)));
+                // Keep hairline marks visible when zoomed out.
+                painter.rect_filled(sr.expand2(vec2((1.0 - sr.width()).max(0.0) / 2.0, (1.0 - sr.height()).max(0.0) / 2.0)), 0.0, Color32::BLACK);
+            }
+        }
         painter.rect_stroke(pr, 0.0, Stroke::new(1.0, Color32::from_gray(120)), StrokeKind::Outside);
 
         let visible = Rect::from_points(v.to_doc(origin, rect.min), v.to_doc(origin, rect.max));
@@ -718,6 +814,9 @@ impl Canvas {
             let Some(bb) = c.bbox.map(|b| if sel { transform_rect(m, b) } else { b }) else { continue };
             if !overlaps(bb, visible) {
                 continue;
+            }
+            for (img, im) in o.page_images() {
+                shapes.extend(self.image_shape(origin, img, m * im));
             }
             let color = if o.cut == CutAction::NoCut { Color32::from_gray(150) } else { color32(o.style.stroke) };
             let stroke = Stroke::new(if sel { 1.8 } else { 1.0 }, color);

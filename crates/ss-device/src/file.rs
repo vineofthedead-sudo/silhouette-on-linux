@@ -36,6 +36,7 @@ impl Transport for FileTransport {
                 Query::Firmware => self.replies.extend_from_slice(b" FILE\x03"),
                 Query::ToolSetup => self.replies.extend_from_slice(b"none\x03"),
                 Query::Initialize => {}
+                Query::Registration => self.replies.extend_from_slice(crate::virtual_cutter::REGISTRATION_OK),
             }
         }
         self.out.flush()?;

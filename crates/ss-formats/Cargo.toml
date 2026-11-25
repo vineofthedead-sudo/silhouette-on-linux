@@ -9,6 +9,8 @@ license.workspace = true
 [dependencies]
 ss-geom.workspace = true
 ss-doc.workspace = true
+ss-text.workspace = true
+serde.workspace = true
 usvg.workspace = true
 flate2.workspace = true
 dxf.workspace = true
@@ -17,6 +19,7 @@ serde_json.workspace = true
 
 [dev-dependencies]
 png.workspace = true
+epaint_default_fonts.workspace = true
 
 [lints]
 workspace = true

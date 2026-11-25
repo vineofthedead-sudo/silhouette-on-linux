@@ -16,6 +16,7 @@ ss-doc.workspace = true
 ss-formats.workspace = true
 ss-gpgl.workspace = true
 ss-device.workspace = true
+ss-text.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 serde_json.workspace = true
@@ -25,6 +26,7 @@ ss-geom.workspace = true
 ss-doc.workspace = true
 ss-formats.workspace = true
 ss-gpgl.workspace = true
+ss-text.workspace = true
 serde_json.workspace = true
 
 [lints]

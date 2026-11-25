@@ -60,6 +60,28 @@ pub struct StudioSubpath {
     pub points: Vec<StudioPoint>,
 }
 
+/// A raster from the image table (section 1 of a `.studio3`). Shapes use these as image or
+/// pattern fills.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StudioImage {
+    /// Content id, usually an MD5 hex string, referenced from shape properties.
+    pub id: String,
+    pub name: String,
+    pub width_px: u32,
+    pub height_px: u32,
+    pub png: Vec<u8>,
+}
+
+/// A shape whose fill is an image from the table.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImageFill {
+    pub image_id: String,
+    /// The shape's local outline (inside block A). Placed images use the unit square
+    /// `(-1,-1)..(1,1)`; mapping it onto the page outline gives the exact placement, including the
+    /// transforms of enclosing groups.
+    pub local: Option<Vec<StudioSubpath>>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct StudioShape {
     pub name: Option<String>,
@@ -74,8 +96,8 @@ pub struct StudioShape {
     pub a_range: (usize, usize),
     /// Offset of block P within the document section.
     pub p_offset: usize,
+    pub image_fill: Option<ImageFill>,
 }
-
 impl StudioShape {
     pub fn is_empty(&self) -> bool {
         self.outline.iter().all(|s| s.points.is_empty())
@@ -107,6 +129,8 @@ pub struct StudioFile {
     /// Records with an empty outline (layers, groups, empty text), counted for diagnostics.
     pub empty_records: usize,
     pub preview_png: Option<Vec<u8>>,
+    /// Image table (section 1, v5 only).
+    pub images: Vec<StudioImage>,
     /// Section byte ranges in the file (v5).
     pub sections: Vec<(usize, usize)>,
     /// Declared sections dropped because they run past the end of the file.
@@ -388,6 +412,7 @@ pub fn parse_document(doc: &[u8]) -> (Vec<StudioShape>, usize) {
             effects: Vec::new(),
             a_range: (a_body, a_end),
             p_offset: p_off,
+            image_fill: None,
         };
         if shape.is_empty() {
             empty += 1;
@@ -406,6 +431,80 @@ pub fn parse_document(doc: &[u8]) -> (Vec<StudioShape>, usize) {
     (shapes, empty)
 }
 
+/// Image table layout (section 1), verified on 76 real files with 1–14 images each:
+/// `0x01, u64 section size, u64 ?`, then from `0x11` records of
+/// `u64 record size (from this field), u64 id length, id, u64 header length,
+///  header { u64 name length, name, u64 width, u64 height, u64 dpi, …, u64 png length }, PNG`.
+pub fn parse_image_table(s: &[u8]) -> Vec<StudioImage> {
+    let mut out = Vec::new();
+    if s.first() != Some(&1) {
+        return out;
+    }
+    let mut o = 0x11;
+    while let Some(size) = read_u64(s, o) {
+        let Some(end) = usize::try_from(size).ok().filter(|n| *n >= 24).and_then(|n| o.checked_add(n)).filter(|e| *e <= s.len()) else {
+            break;
+        };
+        if let Some(img) = parse_image_record(&s[o..end]) {
+            out.push(img);
+        }
+        o = end;
+    }
+    out
+}
+
+fn parse_image_record(r: &[u8]) -> Option<StudioImage> {
+    let mut c = Cur::new(r, 8);
+    let len = |v: u64, max: usize| usize::try_from(v).ok().filter(|n| *n <= max);
+    let id_len = len(c.u64()?, 256)?;
+    let id = std::str::from_utf8(r.get(c.o..c.o + id_len)?).ok()?.to_string();
+    c.o += id_len;
+    let header = len(c.u64()?, r.len())?;
+    let png_at = c.o.checked_add(header)?;
+    let name_len = len(c.u64()?, 4096)?;
+    let name = String::from_utf8_lossy(r.get(c.o..c.o + name_len)?).into_owned();
+    c.o += name_len;
+    let width_px = u32::try_from(c.u64()?).ok()?;
+    let height_px = u32::try_from(c.u64()?).ok()?;
+    let png_len = len(read_u64(r, png_at.checked_sub(8)?)?, r.len())?;
+    let png = r.get(png_at..png_at.checked_add(png_len)?)?;
+    (ss_doc::png_size(png) == Some((width_px, height_px)) && !id.is_empty())
+        .then(|| StudioImage { id, name, width_px, height_px, png: png.to_vec() })
+}
+
+/// Links shapes to image-table entries. A reference is the byte `0x05` followed by a
+/// length-prefixed id inside the shape's properties; it belongs to the innermost record whose
+/// block A contains it.
+fn attach_image_fills(doc: &[u8], shapes: &mut [StudioShape], images: &[StudioImage]) {
+    if images.is_empty() {
+        return;
+    }
+    let ids: HashSet<&[u8]> = images.iter().map(|i| i.id.as_bytes()).collect();
+    for i in 0..doc.len().saturating_sub(5) {
+        if doc[i] != 5 {
+            continue;
+        }
+        let Some(n) = Cur::new(doc, i + 1).u32().map(|n| n as usize).filter(|n| (1..=256).contains(n)) else { continue };
+        let Some(id) = doc.get(i + 5..i + 5 + n).filter(|id| ids.contains(id)) else { continue };
+        let owner = shapes
+            .iter_mut()
+            .filter(|s| s.a_range.0 <= i && i < s.a_range.1)
+            .min_by_key(|s| s.a_range.1 - s.a_range.0);
+        if let Some(s) = owner
+            && s.image_fill.is_none()
+        {
+            s.image_fill = Some(ImageFill { image_id: String::from_utf8_lossy(id).into_owned(), local: None });
+        }
+    }
+    for s in shapes.iter_mut() {
+        if s.image_fill.is_some() {
+            let local = local_outline(doc, s);
+            if let Some(f) = s.image_fill.as_mut() {
+                f.local = local;
+            }
+        }
+    }
+}
 /// Section byte ranges, number of dropped sections, writer version.
 type V5Layout = (Vec<(usize, usize)>, usize, Option<u64>);
 
@@ -475,35 +574,93 @@ pub fn parse(data: &[u8]) -> Result<StudioFile, StudioError> {
         StudioVersion::V5 => split_v5(data)?,
     };
     let doc = document_section(data)?;
-    let (shapes, empty_records) = parse_document(doc);
+    let (mut shapes, empty_records) = parse_document(doc);
+    let images = match version {
+        StudioVersion::V5 => sections.get(1).map(|&(s, e)| parse_image_table(&data[s..e])).unwrap_or_default(),
+        StudioVersion::V4 => Vec::new(),
+    };
+    attach_image_fills(doc, &mut shapes, &images);
     let preview_png = sections
         .get(2)
         .map(|&(s, e)| &data[s..e])
         .filter(|b| b.starts_with(b"\x89PNG\r\n\x1a\n"))
         .map(<[u8]>::to_vec);
-    Ok(StudioFile { version, saved_by, page_mm: page_size(doc), shapes, empty_records, preview_png, sections, dropped_sections: dropped })
+    Ok(StudioFile { version, saved_by, page_mm: page_size(doc), shapes, empty_records, preview_png, images, sections, dropped_sections: dropped })
 }
 
-/// Converts a decoded file into an editable document (one path object per shape, page coords).
+/// Page preset matching `w`×`h` mm, or a custom page of that size.
+pub fn page_for_size(w: f64, h: f64) -> ss_doc::Page {
+    use ss_doc::Page;
+    ["letter", "a4", "a3", "legal", "8x12", "12x12", "12x24", "15x15", "24x24", "6x8"]
+        .into_iter()
+        .filter_map(Page::preset)
+        .find(|p| (p.width_mm - w).abs() < 0.5 && (p.height_mm - h).abs() < 0.5)
+        .unwrap_or(Page { width_mm: w, height_mm: h, media: "custom".into(), ..Page::default() })
+}
+
+fn straight_points(subs: &[StudioSubpath]) -> Option<Vec<Point>> {
+    let [s] = subs else { return None };
+    let curved = s.points.iter().any(|p| p.handle_in.is_some() || p.handle_out.is_some());
+    (s.points.len() == 4 && !curved).then(|| s.points.iter().map(|p| Point::new(f64::from(p.x), f64::from(p.y))).collect())
+}
+
+/// Placement of a shape that shows a whole image stretched over a rectangle: the image's pixel
+/// grid spans the local rectangle and `Affine` maps it to the page. Tiled pattern fills, whose
+/// outline is any shape or whose rectangle does not match the image's aspect ratio, return `None`.
+pub fn placed_image(file: &StudioFile, s: &StudioShape) -> Option<(ss_doc::ImageData, Affine)> {
+    let fill = s.image_fill.as_ref()?;
+    let img = file.images.iter().find(|i| i.id == fill.image_id)?;
+    let page = straight_points(&s.outline)?;
+    let unit = [(-1.0, -1.0), (-1.0, 1.0), (1.0, 1.0), (1.0, -1.0)].map(|(x, y)| Point::new(x, y)).to_vec();
+    let local = fill.local.as_deref().and_then(straight_points).unwrap_or(unit);
+    let (dl1, dl3) = (local[1] - local[0], local[3] - local[0]);
+    let (dp1, dp3) = (page[1] - page[0], page[3] - page[0]);
+    let det = dl1.x * dl3.y - dl3.x * dl1.y;
+    if det.abs() < 1e-12 {
+        return None;
+    }
+    // Linear part M solves M·dl1 = dp1 and M·dl3 = dp3.
+    let a = (dp1.x * dl3.y - dp3.x * dl1.y) / det;
+    let c = (dp3.x * dl1.x - dp1.x * dl3.x) / det;
+    let b = (dp1.y * dl3.y - dp3.y * dl1.y) / det;
+    let d = (dp3.y * dl1.x - dp1.y * dl3.x) / det;
+    let lin = Affine::new([a, b, c, d, 0.0, 0.0]);
+    let m = Affine::translate(page[0] - lin * local[0]) * lin;
+    if (m * local[2]).distance(page[2]) > 0.05 {
+        return None;
+    }
+    let lb = local.iter().fold(ss_geom::Rect::from_points(local[0], local[0]), |r, p| r.union_pt(*p));
+    let (sx, sy) = (m.as_coeffs()[0].hypot(m.as_coeffs()[1]), m.as_coeffs()[2].hypot(m.as_coeffs()[3]));
+    let shown = (lb.width() * sx) / (lb.height() * sy);
+    let native = f64::from(img.width_px) / f64::from(img.height_px);
+    if (shown / native - 1.0).abs() > 0.01 {
+        return None;
+    }
+    let data = ss_doc::ImageData::from_png(img.png.clone(), lb)?;
+    Some((data, m))
+}
+
+/// Converts a decoded file into an editable document: one path object per shape in page
+/// coordinates, and an image object (never cut) for each placed raster image.
 pub fn to_document(file: &StudioFile) -> ss_doc::Document {
-    use ss_doc::{Document, Object, Page};
+    use ss_doc::{Document, Object};
     let mut doc = Document::default();
     if let Some((w, h)) = file.page_mm {
-        let (w, h) = (f64::from(w), f64::from(h));
-        let preset = ["letter", "a4", "a3", "legal", "8x12", "12x12", "12x24", "15x15", "24x24", "6x8"]
-            .into_iter()
-            .filter_map(Page::preset)
-            .find(|p| (p.width_mm - w).abs() < 0.5 && (p.height_mm - h).abs() < 0.5);
-        doc.page = preset.unwrap_or(Page { width_mm: w, height_mm: h, media: "custom".into(), ..Page::default() });
+        doc.page = page_for_size(f64::from(w), f64::from(h));
     }
     let layer = doc.default_layer();
     for s in &file.shapes {
-        let name = s.name.clone().filter(|n| !n.trim().is_empty()).unwrap_or_else(|| "Shape".into());
-        doc.objects.push(Object::path(name, layer, s.to_bezpath()));
+        let name = s.name.clone().filter(|n| !n.trim().is_empty());
+        if let Some((img, m)) = placed_image(file, s) {
+            let mut o = Object::image(name.unwrap_or_else(|| "Image".into()), layer, img);
+            o.transform = m;
+            doc.objects.push(o);
+            continue;
+        }
+        doc.objects.push(Object::path(name.unwrap_or_else(|| "Shape".into()), layer, s.to_bezpath()));
     }
     doc
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -609,6 +766,7 @@ mod tests {
             shapes: vec![],
             empty_records: 0,
             preview_png: None,
+            images: vec![],
             sections: vec![],
             dropped_sections: 0,
         };

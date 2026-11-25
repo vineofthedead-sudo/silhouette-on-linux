@@ -198,7 +198,7 @@ pub fn export(doc: &Document, tolerance: f64) -> Result<Vec<u8>, DxfError> {
     drawing.header.default_drawing_units = Units::Millimeters;
     let h = doc.page.height_mm;
     for o in doc.visible_objects() {
-        for p in o.page_paths() {
+        for p in o.cut_paths() {
             for pl in flatten(&p, tolerance) {
                 let mut lw = LwPolyline::default();
                 lw.set_is_closed(pl.closed);

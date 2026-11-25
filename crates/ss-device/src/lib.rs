@@ -16,7 +16,7 @@ use ss_gpgl::{ETX, Status, control};
 
 pub use file::FileTransport;
 pub use models::{Model, find_model};
-pub use runner::{JobEvent, JobHandle, RunOptions, spawn_job};
+pub use runner::{JobEvent, JobHandle, RunOptions, spawn_cut_job, spawn_job};
 pub use usb::{UsbDeviceInfo, UsbTransport, enumerate};
 pub use virtual_cutter::{VirtualCutter, VirtualHandle};
 
@@ -40,6 +40,8 @@ pub enum DeviceError {
     Protocol(String),
     #[error("cancelled")]
     Cancelled,
+    #[error("registration marks not found: {0}")]
+    Registration(String),
 }
 
 impl From<rusb::Error> for DeviceError {
@@ -180,6 +182,28 @@ impl<T: Transport> Cutter<T> {
     /// Installed tools on Cameo 4 class machines.
     pub fn tool_setup(&mut self) -> Result<Option<String>, DeviceError> {
         Ok(ss_gpgl::parse_firmware(&self.query(TOOL_SETUP_QUERY, Duration::from_secs(1))?))
+    }
+
+    /// Waits for the reply to a registration mark search that has already been sent. The cutter
+    /// answers once it has scanned the marks, which can take tens of seconds.
+    pub fn wait_registration(&mut self, timeout: Duration, cancelled: &dyn Fn() -> bool) -> Result<(), DeviceError> {
+        let deadline = Instant::now() + timeout;
+        let mut reply = Vec::new();
+        while !reply.contains(&ETX) {
+            if cancelled() {
+                return Err(DeviceError::Cancelled);
+            }
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return Err(DeviceError::Registration(format!(
+                    "no reply within {} s; check that the marks are printed sharply in black and that the sheet is aligned on the mat",
+                    timeout.as_secs()
+                )));
+            }
+            reply.extend(self.transport.read(left.min(self.io_timeout))?);
+        }
+        ss_gpgl::parse_registration(&reply)
+            .map_err(|r| DeviceError::Registration(format!("the cutter answered {r:?}; reload the sheet and try again")))
     }
 
     /// Polls the status until `done` accepts it. `on_status` sees every reply.

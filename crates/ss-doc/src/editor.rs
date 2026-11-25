@@ -18,6 +18,10 @@ pub enum EditError {
     NeedMore(usize),
     #[error("the operation produced no geometry")]
     EmptyResult,
+    #[error("{0}")]
+    NotApplicable(&'static str),
+    #[error("{0}")]
+    Invalid(&'static str),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -457,8 +461,99 @@ impl Editor {
             Ok(())
         })
     }
-}
 
+    /// Turns on, changes or (with `None`) removes the Print & Cut registration marks.
+    pub fn set_registration(&mut self, marks: Option<RegMarks>) -> Result<(), EditError> {
+        if let Some(m) = &marks {
+            m.validate(&self.doc.page).map_err(EditError::Invalid)?;
+        }
+        self.apply("Registration Marks", |d, _| {
+            d.page.registration = marks;
+            Ok(())
+        })
+    }
+
+    /// Sets or clears the background paper image.
+    pub fn set_background(&mut self, image: Option<ImageData>) -> Result<(), EditError> {
+        self.apply("Background", |d, _| {
+            d.background = image;
+            Ok(())
+        })
+    }
+
+    /// Replaces the content and outlines of a text object, keeping its placement and style.
+    pub fn update_text(&mut self, id: ObjectId, data: TextData, outlines: BezPath) -> Result<(), EditError> {
+        if !matches!(self.doc.find(id).map(|o| &o.kind), Some(ObjectKind::Text { .. })) {
+            return Err(EditError::NotApplicable("the object is not a text object"));
+        }
+        self.apply("Edit Text", |d, _| {
+            let o = d.find_mut(id).ok_or(EditError::EmptySelection)?;
+            o.kind = ObjectKind::Text { data, outlines: SharedPath::new(outlines) };
+            Ok(())
+        })
+    }
+
+    /// Converts the selected text objects into plain paths that can be welded and edited.
+    pub fn convert_text_to_paths(&mut self) -> Result<usize, EditError> {
+        self.require(1)?;
+        self.apply("Convert Text to Path", |d, sel| {
+            let mut n = 0;
+            for o in d.objects.iter_mut().filter(|o| sel.contains(&o.id)) {
+                if let ObjectKind::Text { outlines, .. } = &o.kind {
+                    o.kind = ObjectKind::Path { path: outlines.clone(), fill_rule: FillRule::NonZero };
+                    n += 1;
+                }
+            }
+            if n == 0 {
+                return Err(EditError::NotApplicable("no text objects are selected"));
+            }
+            Ok(n)
+        })
+    }
+
+    /// Groups the selection (or every unlocked visible object when nothing is selected) by
+    /// identical fill and stroke colour. Returns the number of groups made; colours used by a
+    /// single object are left ungrouped, and images (which have no line colour) are never moved.
+    pub fn group_by_color(&mut self) -> Result<usize, EditError> {
+        let targets: HashSet<ObjectId> = if self.selection.is_empty() {
+            let doc = &self.doc;
+            doc.visible_objects()
+                .filter(|o| !o.locked && !doc.layer(o.layer).is_some_and(|l| l.locked))
+                .map(|o| o.id)
+                .collect()
+        } else {
+            self.selection.iter().copied().collect()
+        };
+        let key = |o: &Object| (o.layer, o.style.fill, o.style.stroke);
+        type ColourKey = (LayerId, Option<Rgba>, Rgba);
+        let mut buckets: Vec<(ColourKey, Vec<ObjectId>)> = Vec::new();
+        for o in self.doc.objects.iter().filter(|o| targets.contains(&o.id) && !matches!(o.kind, ObjectKind::Image(_))) {
+            match buckets.iter_mut().find(|(k, _)| *k == key(o)) {
+                Some((_, ids)) => ids.push(o.id),
+                None => buckets.push((key(o), vec![o.id])),
+            }
+        }
+        buckets.retain(|(_, ids)| ids.len() >= 2);
+        if buckets.is_empty() {
+            return Err(EditError::NotApplicable("no two objects share a colour"));
+        }
+        self.apply("Group by Colour", |d, sel| {
+            sel.clear();
+            for ((layer, fill, stroke), ids) in buckets.iter() {
+                let first = d.objects.iter().position(|o| ids.contains(&o.id)).ok_or(EditError::EmptySelection)?;
+                let (children, rest): (Vec<Object>, Vec<Object>) = d.objects.drain(..).partition(|o| ids.contains(&o.id));
+                d.objects = rest;
+                let mut g = Object::path(format!("Colour {}", fill.unwrap_or(*stroke).to_hex()), *layer, BezPath::new());
+                g.style = children[0].style.clone();
+                g.cut = children[0].cut;
+                g.kind = ObjectKind::Group { children };
+                sel.push(g.id);
+                d.objects.insert(first.min(d.objects.len()), g);
+            }
+            Ok(buckets.len())
+        })
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -576,5 +671,104 @@ mod tests {
         let (ed, _a, b) = ed_with_two_squares();
         assert_eq!(ed.doc.hit_test(Point::new(5.0, 7.0), 0.2), Some(b));
         assert_eq!(ed.doc.hit_test(Point::new(30.0, 30.0), 0.2), None);
+    }
+
+    #[test]
+    fn registration_marks_geometry_and_undo() {
+        let mut ed = Editor::new(Document::default());
+        let m = RegMarks::default();
+        ed.set_registration(Some(m)).unwrap();
+        let page = ed.doc.page.clone();
+        let outlines = m.outlines(&page);
+        assert_eq!(outlines.len(), 3);
+        let sq = ss_geom::Shape::bounding_box(&outlines[0]);
+        assert_eq!((sq.x0, sq.y0, sq.width()), (10.0, 10.0, 5.0));
+        let tr = ss_geom::Shape::bounding_box(&outlines[1]);
+        assert!((tr.x1 - (304.8 - 10.0)).abs() < 1e-9 && (tr.height() - 20.0).abs() < 1e-9);
+        let bl = ss_geom::Shape::bounding_box(&outlines[2]);
+        assert!((bl.y1 - (304.8 - 10.0)).abs() < 1e-9 && (bl.width() - 20.0).abs() < 1e-9);
+        // L-bracket area: two arms of length × thickness sharing one thickness² corner.
+        let expect = 2.0 * 20.0 * 0.5 - 0.25;
+        assert!((ss_geom::Shape::area(&outlines[1]).abs() - expect).abs() < 1e-9);
+        assert!(ed.set_registration(Some(RegMarks { inset_mm: 200.0, ..m })).is_err());
+        assert_eq!(ed.undo().as_deref(), Some("Registration Marks"));
+        assert_eq!(ed.doc.page.registration, None);
+    }
+
+    #[test]
+    fn old_native_files_still_load() {
+        let mut v: serde_json::Value = serde_json::from_str(&Document::default().to_json().unwrap()).unwrap();
+        let page = v["document"]["page"].as_object_mut().unwrap();
+        assert!(!page.contains_key("registration"), "None must not be serialised");
+        page.remove("registration");
+        let back = Document::from_json(&v.to_string()).unwrap();
+        assert_eq!(back.page.registration, None);
+        assert_eq!(back.background, None);
+    }
+
+    #[test]
+    fn images_are_never_cut_paths() {
+        let mut ed = Editor::new(Document::default());
+        let l = ed.doc.default_layer();
+        let png = {
+            let mut b = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR".to_vec();
+            b.extend_from_slice(&7u32.to_be_bytes());
+            b.extend_from_slice(&3u32.to_be_bytes());
+            b
+        };
+        let img = ImageData::from_png(png, Rect::new(0.0, 0.0, 70.0, 30.0)).unwrap();
+        assert_eq!((img.width_px, img.height_px), (7, 3));
+        let id = ed.add(Object::image("Art", l, img));
+        let o = ed.doc.find(id).unwrap();
+        assert_eq!(o.page_paths().len(), 1, "images are selectable by their rectangle");
+        assert!(o.cut_paths().is_empty());
+        assert_eq!(o.cut, CutAction::NoCut);
+        assert_eq!(ed.doc.hit_test(Point::new(35.0, 15.0), 0.1), Some(id), "clicking inside a picture selects it");
+        assert_eq!(ed.doc.hit_test(Point::new(80.0, 15.0), 0.1), None);
+    }
+
+    #[test]
+    fn text_convert_and_update() {
+        let mut ed = Editor::new(Document::default());
+        let l = ed.doc.default_layer();
+        let data = TextData { text: "Hi".into(), ..TextData::default() };
+        let id = ed.add(Object::text(l, data.clone(), Rect::new(0.0, 0.0, 5.0, 5.0).to_path(0.0)));
+        assert_eq!(ed.doc.find(id).unwrap().name, "Hi");
+        ed.update_text(id, TextData { text: "Hello".into(), ..data }, Rect::new(0.0, 0.0, 9.0, 5.0).to_path(0.0)).unwrap();
+        assert!((ed.doc.find(id).unwrap().bounds().unwrap().width() - 9.0).abs() < 1e-9);
+        ed.select_only(id);
+        assert_eq!(ed.convert_text_to_paths(), Ok(1));
+        assert!(matches!(ed.doc.find(id).unwrap().kind, ObjectKind::Path { .. }));
+        assert!(ed.convert_text_to_paths().is_err());
+        assert!(ed.update_text(id, TextData::default(), BezPath::new()).is_err());
+    }
+
+    #[test]
+    fn group_by_color_buckets() {
+        let mut ed = Editor::new(Document::default());
+        let l = ed.doc.default_layer();
+        let mk = |ed: &mut Editor, x: f64, fill: Option<Rgba>| {
+            let mut o = Object::path("s", l, Rect::new(x, 0.0, x + 5.0, 5.0).to_path(0.0));
+            o.style.fill = fill;
+            ed.add(o)
+        };
+        let green = Some(Rgba::rgb(0, 200, 0));
+        let a = mk(&mut ed, 0.0, green);
+        let _b = mk(&mut ed, 10.0, None);
+        let c = mk(&mut ed, 20.0, green);
+        let _d = mk(&mut ed, 30.0, None);
+        let _e = mk(&mut ed, 40.0, Some(Rgba::BLACK));
+        let img = ImageData { encoded: Vec::new(), width_px: 1, height_px: 1, rect: [50.0, 0.0, 55.0, 5.0] };
+        let pic = ed.add(Object::image("pic", l, img));
+        ed.selection.clear();
+        assert_eq!(ed.group_by_color(), Ok(2));
+        assert_eq!(ed.doc.objects.len(), 4, "the picture shares the default colours but stays ungrouped");
+        assert!(ed.doc.objects.iter().any(|o| o.id == pic));
+        let g = &ed.doc.objects[0];
+        assert_eq!(g.name, "Colour #00c800");
+        let ObjectKind::Group { children } = &g.kind else { panic!("expected group") };
+        assert_eq!(children.iter().map(|c| c.id).collect::<Vec<_>>(), vec![a, c]);
+        ed.undo();
+        assert_eq!(ed.doc.objects.len(), 6);
     }
 }
