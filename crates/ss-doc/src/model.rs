@@ -16,6 +16,7 @@ pub struct Rgba {
 }
 
 impl Rgba {
+    pub const TRANSPARENT: Rgba = Rgba { r: 0, g: 0, b: 0, a: 0 };
     pub const BLACK: Rgba = Rgba::rgb(0, 0, 0);
     pub const RED: Rgba = Rgba::rgb(0xe0, 0x00, 0x00);
     pub const BLUE: Rgba = Rgba::rgb(0x00, 0x60, 0xe0);
@@ -61,16 +62,30 @@ pub enum CutAction {
     Perforate,
 }
 
+/// A tiled raster pattern fill (imported from `.studio` / `.studio3` pattern fills).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PatternFill {
+    pub id: String,
+    #[serde(with = "bytes_b64")]
+    pub encoded: Vec<u8>,
+    pub width_px: u32,
+    pub height_px: u32,
+    pub tile_width_mm: f64,
+    pub tile_height_mm: f64,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Style {
     pub stroke: Rgba,
     pub stroke_width_mm: f64,
     pub fill: Option<Rgba>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fill_pattern: Option<Box<PatternFill>>,
 }
 
 impl Default for Style {
     fn default() -> Self {
-        Self { stroke: Rgba::RED, stroke_width_mm: 0.25, fill: None }
+        Self { stroke: Rgba::RED, stroke_width_mm: 0.25, fill: None, fill_pattern: None }
     }
 }
 
@@ -174,6 +189,12 @@ impl ImageData {
         Some(Self { encoded, width_px, height_px, rect: [rect.x0, rect.y0, rect.x1, rect.y1] })
     }
 
+    /// Wraps PNG or JPEG bytes, reading the pixel size from the image header.
+    pub fn from_encoded(encoded: Vec<u8>, rect: Rect) -> Option<Self> {
+        let (width_px, height_px) = image_size(&encoded)?;
+        Some(Self { encoded, width_px, height_px, rect: [rect.x0, rect.y0, rect.x1, rect.y1] })
+    }
+
     pub fn placement(&self) -> Rect {
         let [x0, y0, x1, y1] = self.rect;
         Rect::new(x0, y0, x1, y1)
@@ -193,6 +214,48 @@ pub fn png_size(b: &[u8]) -> Option<(u32, u32)> {
     let be = |i: usize| u32::from_be_bytes([b[i], b[i + 1], b[i + 2], b[i + 3]]);
     let (w, h) = (be(16), be(20));
     (w > 0 && h > 0).then_some((w, h))
+}
+
+/// Pixel size of a JPEG from its SOF marker, or `None` if `b` is not a valid JPEG.
+pub fn jpeg_size(b: &[u8]) -> Option<(u32, u32)> {
+    if b.len() < 4 || !b.starts_with(b"\xFF\xD8") {
+        return None;
+    }
+    let mut i = 2;
+    while i + 3 < b.len() {
+        if b[i] != 0xFF {
+            i += 1;
+            continue;
+        }
+        while i < b.len() && b[i] == 0xFF {
+            i += 1;
+        }
+        if i >= b.len() {
+            break;
+        }
+        let marker = b[i];
+        i += 1;
+        if marker == 0xD8 || marker == 0xD9 || (0xD0..=0xD7).contains(&marker) || marker == 0x01 {
+            continue;
+        }
+        let len = u16::from_be_bytes([*b.get(i)?, *b.get(i + 1)?]) as usize;
+        if len < 2 || i + len > b.len() {
+            return None;
+        }
+        // SOF0..SOF3, SOF5..SOF7, SOF9..SOF11, SOF13..SOF15
+        if matches!(marker, 0xC0..=0xC3 | 0xC5..=0xC7 | 0xC9..=0xCB | 0xCD..=0xCF) && len >= 7 {
+            let h = u32::from(u16::from_be_bytes([b[i + 3], b[i + 4]]));
+            let w = u32::from(u16::from_be_bytes([b[i + 5], b[i + 6]]));
+            return (w > 0 && h > 0).then_some((w, h));
+        }
+        i += len;
+    }
+    None
+}
+
+/// Pixel size of a PNG or JPEG image.
+pub fn image_size(b: &[u8]) -> Option<(u32, u32)> {
+    png_size(b).or_else(|| jpeg_size(b))
 }
 /// Standard padded base64, used for embedded images in project files.
 pub mod b64 {

@@ -83,6 +83,13 @@ pub struct ImageFill {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum StudioFill {
+    Solid([f32; 4]),
+    Gradient(Vec<(f32, [f32; 4])>),
+    Pattern(String),
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct StudioShape {
     pub name: Option<String>,
     pub serial: u64,
@@ -97,6 +104,11 @@ pub struct StudioShape {
     /// Offset of block P within the document section.
     pub p_offset: usize,
     pub image_fill: Option<ImageFill>,
+    pub stroke: Option<[f32; 4]>,
+    pub stroke_width_mm: f32,
+    pub cut_id: Option<String>,
+    pub fill: Option<StudioFill>,
+    pub layer_name: Option<String>,
 }
 impl StudioShape {
     pub fn is_empty(&self) -> bool {
@@ -360,6 +372,107 @@ fn find_effects(a: &[u8]) -> Vec<String> {
     out
 }
 
+struct ShapeProps {
+    stroke: Option<[f32; 4]>,
+    stroke_width_mm: f32,
+    cut_id: Option<String>,
+    fill: Option<StudioFill>,
+}
+
+fn read_str(c: &mut Cur, max_len: usize) -> Option<String> {
+    let len = c.u32()? as usize;
+    if len > max_len {
+        return None;
+    }
+    let bytes = c.b.get(c.o..c.o.checked_add(len)?)?;
+    c.o += len;
+    Some(String::from_utf8_lossy(bytes).into_owned())
+}
+
+fn parse_props_body(p: &[u8]) -> Option<ShapeProps> {
+    let mut c = Cur::new(p, 0);
+    if c.u8()? != 0 {
+        return None;
+    }
+    let has_stroke = c.u8()?;
+    let stroke = match has_stroke {
+        0 => None,
+        1 => {
+            let rgba = [c.f32()?, c.f32()?, c.f32()?, c.f32()?];
+            rgba.iter().all(|v| v.is_finite()).then_some(rgba)
+        }
+        _ => return None,
+    };
+    let _sw0 = c.f32()?;
+    let sw1 = c.f32()?;
+    let stroke_width_mm = if sw1.is_finite() && (0.0..=200.0).contains(&sw1) { sw1 } else { 0.0 };
+    let (cb, ce) = block_at(p, c.o)?;
+    let mut cc = Cur::new(&p[..ce], cb);
+    let cut_id = read_str(&mut cc, 64);
+    c.o = ce;
+    let _ = c.u8()?;
+    let _join = read_str(&mut c, 64)?;
+    let _ = c.u8()?;
+    let _cap = read_str(&mut c, 64)?;
+    let fill = match c.u8()? {
+        0 => None,
+        1 => {
+            let rgba = [c.f32()?, c.f32()?, c.f32()?, c.f32()?];
+            rgba.iter().all(|v| v.is_finite()).then_some(StudioFill::Solid(rgba))
+        }
+        2 => {
+            let _gsize = c.u32()?;
+            let last_stop = c.i32()?;
+            let mut stops = Vec::new();
+            if (0..=64).contains(&last_stop) {
+                for _ in 0..=last_stop {
+                    let rgba = [c.f32()?, c.f32()?, c.f32()?, c.f32()?];
+                    let pos = c.f32()?;
+                    if rgba.iter().all(|v| v.is_finite()) && pos.is_finite() {
+                        stops.push((pos, rgba));
+                    }
+                }
+            }
+            (!stops.is_empty()).then_some(StudioFill::Gradient(stops))
+        }
+        // v4 uses 3 and v5 uses 5 for pattern/image fills.
+        3 | 5 => read_str(&mut c, 256).filter(|s| !s.is_empty()).map(StudioFill::Pattern),
+        _ => None,
+    };
+    Some(ShapeProps { stroke, stroke_width_mm, cut_id, fill })
+}
+
+fn parse_shape_props(a: &[u8]) -> Option<ShapeProps> {
+    if a.len() >= 17 && a[0] == 0x06 && a[5] == 0x00 && a[6] == 0x01 && a[11] == 0x02 {
+        let size = Cur::new(a, 12).u32()? as usize;
+        let end = 12usize.checked_add(size)?.min(a.len());
+        if end > 16 {
+            return parse_props_body(&a[16..end]);
+        }
+    }
+    if a.len() >= 11 && matches!(a[0], 0x01 | 0x02) && a[5] == 0x00 {
+        let (pb, pe) = block_at(a, 6)?;
+        return parse_props_body(&a[pb..pe]);
+    }
+    None
+}
+
+fn find_layer_name(a: &[u8]) -> Option<String> {
+    for i in 0..a.len().saturating_sub(8) {
+        if a[i..i + 4] == [0xff, 0xff, 0xff, 0xff] {
+            let len = Cur::new(a, i + 4).u32()? as usize;
+            if len <= 128
+                && let Some(bytes) = a.get(i + 8..i + 8 + len)
+                && let Ok(s) = std::str::from_utf8(bytes)
+                && s.chars().all(|ch| !ch.is_control())
+            {
+                return Some(if s.is_empty() { "Default Layer".to_string() } else { s.to_string() });
+            }
+        }
+    }
+    None
+}
+
 fn page_size(doc: &[u8]) -> Option<(f32, f32)> {
     let (root_body, _) = block_at(doc, MAGIC_V5.len())?;
     let (_, first_end) = block_at(doc, root_body)?;
@@ -413,6 +526,11 @@ pub fn parse_document(doc: &[u8]) -> (Vec<StudioShape>, usize) {
             a_range: (a_body, a_end),
             p_offset: p_off,
             image_fill: None,
+            stroke: None,
+            stroke_width_mm: 0.0,
+            cut_id: None,
+            fill: None,
+            layer_name: None,
         };
         if shape.is_empty() {
             empty += 1;
@@ -422,10 +540,18 @@ pub fn parse_document(doc: &[u8]) -> (Vec<StudioShape>, usize) {
     }
     shapes.sort_by_key(|s| s.p_offset);
     for s in &mut shapes {
-        // Effects live in the shape's own properties; skip very large A blocks (containers).
+        // Effects and properties live in the shape's own block A; skip very large A blocks (containers).
         let (a0, a1) = s.a_range;
         if a1 - a0 < 64 * 1024 {
-            s.effects = find_effects(&doc[a0..a1]);
+            let a = &doc[a0..a1];
+            s.effects = find_effects(a);
+            if let Some(props) = parse_shape_props(a) {
+                s.stroke = props.stroke;
+                s.stroke_width_mm = props.stroke_width_mm;
+                s.cut_id = props.cut_id;
+                s.fill = props.fill;
+            }
+            s.layer_name = find_layer_name(a);
         }
     }
     (shapes, empty)
@@ -468,11 +594,72 @@ fn parse_image_record(r: &[u8]) -> Option<StudioImage> {
     let height_px = u32::try_from(c.u64()?).ok()?;
     let png_len = len(read_u64(r, png_at.checked_sub(8)?)?, r.len())?;
     let png = r.get(png_at..png_at.checked_add(png_len)?)?;
-    (ss_doc::png_size(png) == Some((width_px, height_px)) && !id.is_empty())
+    (ss_doc::image_size(png) == Some((width_px, height_px)) && !id.is_empty())
         .then(|| StudioImage { id, name, width_px, height_px, png: png.to_vec() })
 }
 
-/// Links shapes to image-table entries. A reference is the byte `0x05` followed by a
+/// Scans a v4 `.studio` stream for embedded image blocks:
+/// `0x01, u32 block_size, u32 id_len, id, u32 w, u32 h, (0x00|0x01) kind, u32 data_len, bytes`.
+pub fn parse_v4_image_table(data: &[u8]) -> Vec<StudioImage> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i + 24 < data.len() {
+        if data[i] != 1 {
+            i += 1;
+            continue;
+        }
+        let Some((body, end)) = block_at(data, i) else {
+            i += 1;
+            continue;
+        };
+        if end - body >= 20
+            && let Some(img) = parse_v4_image_record(&data[body..end])
+        {
+            out.push(img);
+            i = end;
+            continue;
+        }
+        i += 1;
+    }
+    out
+}
+
+fn parse_v4_image_record(body: &[u8]) -> Option<StudioImage> {
+    let mut c = Cur::new(body, 0);
+    let id_len = c.u32()? as usize;
+    if !(1..=256).contains(&id_len) {
+        return None;
+    }
+    let id = std::str::from_utf8(body.get(c.o..c.o + id_len)?).ok()?.to_string();
+    if id.bytes().any(|b| !(0x20..0x7f).contains(&b)) {
+        return None;
+    }
+    c.o += id_len;
+    let width_px = c.u32()?;
+    let height_px = c.u32()?;
+    if width_px == 0 || height_px == 0 || width_px > 65536 || height_px > 65536 {
+        return None;
+    }
+    let kind = c.u8()?;
+    if kind > 1 {
+        return None;
+    }
+    let data_len = c.u32()? as usize;
+    let img_start = c.o;
+    let mut img_end = img_start.checked_add(data_len)?;
+    if img_end > body.len() || body.len() - img_end > 4 {
+        return None;
+    }
+    // v4 PNG blocks often leave the final 4-byte IEND CRC32 outside `data_len` inside `body`.
+    if kind == 1 && body.len() - img_end == 4 {
+        img_end = body.len();
+    }
+    let bytes = &body[img_start..img_end];
+    (ss_doc::image_size(bytes) == Some((width_px, height_px)))
+        .then(|| StudioImage { id: id.clone(), name: id, width_px, height_px, png: bytes.to_vec() })
+}
+
+/// Links shapes to image-table entries. A reference is `0x05` (v5) or `0x03` (v4) followed by a
 /// length-prefixed id inside the shape's properties; it belongs to the innermost record whose
 /// block A contains it.
 fn attach_image_fills(doc: &[u8], shapes: &mut [StudioShape], images: &[StudioImage]) {
@@ -480,8 +667,15 @@ fn attach_image_fills(doc: &[u8], shapes: &mut [StudioShape], images: &[StudioIm
         return;
     }
     let ids: HashSet<&[u8]> = images.iter().map(|i| i.id.as_bytes()).collect();
+    for s in shapes.iter_mut() {
+        if let Some(StudioFill::Pattern(id)) = &s.fill
+            && ids.contains(id.as_bytes())
+        {
+            s.image_fill = Some(ImageFill { image_id: id.clone(), local: None });
+        }
+    }
     for i in 0..doc.len().saturating_sub(5) {
-        if doc[i] != 5 {
+        if !matches!(doc[i], 3 | 5) {
             continue;
         }
         let Some(n) = Cur::new(doc, i + 1).u32().map(|n| n as usize).filter(|n| (1..=256).contains(n)) else { continue };
@@ -577,7 +771,7 @@ pub fn parse(data: &[u8]) -> Result<StudioFile, StudioError> {
     let (mut shapes, empty_records) = parse_document(doc);
     let images = match version {
         StudioVersion::V5 => sections.get(1).map(|&(s, e)| parse_image_table(&data[s..e])).unwrap_or_default(),
-        StudioVersion::V4 => Vec::new(),
+        StudioVersion::V4 => parse_v4_image_table(data),
     };
     attach_image_fills(doc, &mut shapes, &images);
     let preview_png = sections
@@ -636,20 +830,45 @@ pub fn placed_image(file: &StudioFile, s: &StudioShape) -> Option<(ss_doc::Image
     if (shown / native - 1.0).abs() > 0.01 {
         return None;
     }
-    let data = ss_doc::ImageData::from_png(img.png.clone(), lb)?;
+    let data = ss_doc::ImageData::from_encoded(img.png.clone(), lb)?;
     Some((data, m))
+}
+
+fn map_cut_action(cut_id: Option<&str>) -> ss_doc::CutAction {
+    use ss_doc::CutAction;
+    match cut_id.map(str::to_ascii_lowercase).as_deref() {
+        Some("nocut" | "none") => CutAction::NoCut,
+        Some("sketch" | "pen") => CutAction::Sketch,
+        Some("cutedge") => CutAction::CutEdge,
+        Some("perforate") => CutAction::Perforate,
+        _ => CutAction::Cut,
+    }
 }
 
 /// Converts a decoded file into an editable document: one path object per shape in page
 /// coordinates, and an image object (never cut) for each placed raster image.
 pub fn to_document(file: &StudioFile) -> ss_doc::Document {
-    use ss_doc::{Document, Object};
+    use std::collections::HashMap;
+
+    use ss_doc::{Document, Layer, Object, PatternFill, Rgba};
     let mut doc = Document::default();
     if let Some((w, h)) = file.page_mm {
         doc.page = page_for_size(f64::from(w), f64::from(h));
     }
-    let layer = doc.default_layer();
+    let default_layer = doc.default_layer();
+    let mut layer_ids: HashMap<String, ss_doc::LayerId> = HashMap::new();
+    layer_ids.insert("Default Layer".to_string(), default_layer);
+
+    let images_by_id: HashMap<&str, &StudioImage> = file.images.iter().map(|i| (i.id.as_str(), i)).collect();
+
     for s in &file.shapes {
+        let layer_name = s.layer_name.as_deref().unwrap_or("Default Layer");
+        let layer = *layer_ids.entry(layer_name.to_string()).or_insert_with(|| {
+            let l = Layer::new(layer_name);
+            let id = l.id;
+            doc.layers.push(l);
+            id
+        });
         let name = s.name.clone().filter(|n| !n.trim().is_empty());
         if let Some((img, m)) = placed_image(file, s) {
             let mut o = Object::image(name.unwrap_or_else(|| "Image".into()), layer, img);
@@ -657,7 +876,67 @@ pub fn to_document(file: &StudioFile) -> ss_doc::Document {
             doc.objects.push(o);
             continue;
         }
-        doc.objects.push(Object::path(name.unwrap_or_else(|| "Shape".into()), layer, s.to_bezpath()));
+        let mut o = Object::path(name.unwrap_or_else(|| "Shape".into()), layer, s.to_bezpath());
+        o.cut = map_cut_action(s.cut_id.as_deref());
+        o.style.stroke = match s.stroke {
+            Some(c) => Rgba::from_f32(c),
+            None => {
+                if s.fill.is_some() || s.image_fill.is_some() {
+                    Rgba::TRANSPARENT
+                } else {
+                    Rgba::RED
+                }
+            }
+        };
+        o.style.stroke_width_mm = f64::from(s.stroke_width_mm);
+        match &s.fill {
+            Some(StudioFill::Solid(c)) => {
+                let rgba = Rgba::from_f32(*c);
+                if rgba.a > 0 {
+                    o.style.fill = Some(rgba);
+                }
+            }
+            Some(StudioFill::Gradient(stops)) => {
+                if let Some((_, c)) = stops.get(stops.len() / 2) {
+                    let rgba = Rgba::from_f32(*c);
+                    if rgba.a > 0 {
+                        o.style.fill = Some(rgba);
+                    }
+                }
+            }
+            Some(StudioFill::Pattern(pid)) => {
+                if let Some(img) = images_by_id.get(pid.as_str()) {
+                    // Default 300 DPI tile size in mm, clamped to a sensible range.
+                    let tw = (f64::from(img.width_px) * 25.4 / 300.0).clamp(15.0, 150.0);
+                    let th = (f64::from(img.height_px) * 25.4 / 300.0).clamp(15.0, 150.0);
+                    o.style.fill_pattern = Some(Box::new(PatternFill {
+                        id: img.id.clone(),
+                        encoded: img.png.clone(),
+                        width_px: img.width_px,
+                        height_px: img.height_px,
+                        tile_width_mm: tw,
+                        tile_height_mm: th,
+                    }));
+                }
+            }
+            None => {
+                if let Some(img_fill) = &s.image_fill
+                    && let Some(img) = images_by_id.get(img_fill.image_id.as_str())
+                {
+                    let tw = (f64::from(img.width_px) * 25.4 / 300.0).clamp(15.0, 150.0);
+                    let th = (f64::from(img.height_px) * 25.4 / 300.0).clamp(15.0, 150.0);
+                    o.style.fill_pattern = Some(Box::new(PatternFill {
+                        id: img.id.clone(),
+                        encoded: img.png.clone(),
+                        width_px: img.width_px,
+                        height_px: img.height_px,
+                        tile_width_mm: tw,
+                        tile_height_mm: th,
+                    }));
+                }
+            }
+        }
+        doc.objects.push(o);
     }
     doc
 }

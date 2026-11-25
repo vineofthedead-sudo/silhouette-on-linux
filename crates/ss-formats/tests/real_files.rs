@@ -431,3 +431,84 @@ fn ink_box(png_bytes: &[u8]) -> Option<Rect> {
     r
 }
 
+#[test]
+fn disney_hearts_v4_and_v5_match_svg_colors_and_counts() {
+    let Some(dir) = fixtures_dir() else { return skip("fixtures folder") };
+    let (Some(v4_path), Some(v5_path), Some(svg_path)) = (
+        fixture(&dir, "DISNEY HEARTS.studio"),
+        fixture(&dir, "DISNEY HEARTS.studio3"),
+        fixture(&dir, "DISNEY HEARTS.svg"),
+    ) else {
+        return skip("DISNEY HEARTS fixtures");
+    };
+
+    let svg_text = std::fs::read_to_string(&svg_path).unwrap();
+    for hex in ["#000000", "#800000", "#FFFFFF"] {
+        assert!(svg_text.contains(hex), "expected {hex} in DISNEY HEARTS.svg");
+    }
+
+    for (path, expected_ver) in [(v4_path, StudioVersion::V4), (v5_path, StudioVersion::V5)] {
+        let f = studio::parse(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(f.version, expected_ver);
+        assert_eq!(f.shapes.len(), 449);
+        let doc = studio::to_document(&f);
+        assert_eq!(doc.objects.len(), 449);
+
+        let fills: std::collections::HashSet<String> =
+            doc.objects.iter().filter_map(|o| o.style.fill.map(|c| c.to_hex().to_uppercase())).collect();
+        assert!(fills.contains("#000000"), "{}: missing #000000 fill in {fills:?}", path.display());
+        assert!(fills.contains("#800000"), "{}: missing #800000 fill in {fills:?}", path.display());
+        assert!(fills.contains("#FFFFFF"), "{}: missing #FFFFFF fill in {fills:?}", path.display());
+
+        let strokes: std::collections::HashSet<String> =
+            doc.objects.iter().filter(|o| o.style.stroke.a > 0).map(|o| o.style.stroke.to_hex().to_uppercase()).collect();
+        assert!(strokes.contains("#000000"));
+        assert!(strokes.contains("#800000"));
+        assert!(!strokes.contains("#E00000"), "unexpected default red stroke fallback");
+
+        // Verify off-mat object positions are preserved.
+        let bb = doc.bounds().unwrap();
+        assert!(bb.x0 < -150.0 && bb.x1 > 600.0, "unexpected bounds {bb:?}");
+    }
+}
+
+#[test]
+fn japan_v4_and_v5_match_svg_colors_patterns_and_offmat() {
+    let Some(dir) = fixtures_dir() else { return skip("fixtures folder") };
+    let (Some(v4_path), Some(v5_path), Some(svg_path)) = (
+        fixture(&dir, "JAPAN.studio"),
+        fixture(&dir, "JAPAN.studio3"),
+        fixture(&dir, "JAPAN.svg"),
+    ) else {
+        return skip("JAPAN fixtures");
+    };
+
+    let svg_text = std::fs::read_to_string(&svg_path).unwrap();
+    for hex in ["#000000", "#BBBBBB", "#F53727", "#FF0000", "#FFFFFF"] {
+        assert!(svg_text.contains(hex), "expected {hex} in JAPAN.svg");
+    }
+
+    for (path, expected_ver) in [(v4_path, StudioVersion::V4), (v5_path, StudioVersion::V5)] {
+        let f = studio::parse(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(f.version, expected_ver);
+        assert_eq!(f.shapes.len(), 684);
+        assert_eq!(f.images.len(), 9, "{}: expected 9 embedded images (6 PNG + 3 JPEG)", path.display());
+
+        let doc = studio::to_document(&f);
+        assert_eq!(doc.objects.len(), 684);
+
+        let pattern_count = doc.objects.iter().filter(|o| o.style.fill_pattern.is_some()).count();
+        assert_eq!(pattern_count, 16, "{}: expected 16 pattern-filled objects", path.display());
+
+        let fills: std::collections::HashSet<String> =
+            doc.objects.iter().filter_map(|o| o.style.fill.map(|c| c.to_hex().to_uppercase())).collect();
+        for hex in ["#000000", "#BBBBBB", "#F53727", "#FF0000", "#FFFFFF"] {
+            assert!(fills.contains(hex), "{}: missing {hex} fill in {fills:?}", path.display());
+        }
+
+        // Verify off-mat object positions (JAPAN sits above and left of the 12x12 mat).
+        let bb = doc.bounds().unwrap();
+        assert!(bb.x0 < -400.0 && bb.y0 < -340.0, "unexpected off-mat bounds {bb:?}");
+    }
+}
+

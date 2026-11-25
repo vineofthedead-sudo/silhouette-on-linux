@@ -234,6 +234,7 @@ pub fn export(doc: &Document) -> String {
             }
             let fill = o.style.fill.map_or("none".to_string(), Rgba::to_hex);
             let rule = if o.fill_rule() == FillRule::EvenOdd { r#" fill-rule="evenodd""# } else { "" };
+            let stroke = if o.style.stroke.a == 0 { "none".to_string() } else { o.style.stroke.to_hex() };
             for p in o.cut_paths() {
                 let _ = writeln!(
                     s,
@@ -242,7 +243,7 @@ pub fn export(doc: &Document) -> String {
                     path_data(&p),
                     fill,
                     rule,
-                    o.style.stroke.to_hex(),
+                    stroke,
                     fmt_num(o.style.stroke_width_mm)
                 );
             }

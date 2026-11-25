@@ -122,6 +122,8 @@ struct Cached {
     key: u64,
     lines: Vec<Polyline>,
     bbox: Option<Rect>,
+    fill_verts: Vec<Point>,
+    fill_indices: Vec<u32>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -179,6 +181,7 @@ impl Default for Canvas {
 }
 
 fn content_key(o: &Object, h: &mut DefaultHasher) {
+    (o.style.fill.is_some() || o.style.fill_pattern.is_some()).hash(h);
     for c in o.transform.as_coeffs() {
         c.to_bits().hash(h);
     }
@@ -228,10 +231,9 @@ fn inside(p: Point, poly: &[Point]) -> bool {
 
 /// Cheap identity for an embedded image. Hashing every byte each frame would be too slow for
 /// multi-megabyte photos, so only the length and samples from the start, middle and end are used.
-fn image_key(img: &ImageData) -> u64 {
-    let b = &img.encoded;
+fn bytes_key(b: &[u8], w: u32, h_px: u32) -> u64 {
     let mut h = DefaultHasher::new();
-    (b.len(), img.width_px, img.height_px).hash(&mut h);
+    (b.len(), w, h_px).hash(&mut h);
     let mid = b.len() / 2;
     b[..b.len().min(1024)].hash(&mut h);
     b[mid.saturating_sub(512)..(mid + 512).min(b.len())].hash(&mut h);
@@ -239,13 +241,21 @@ fn image_key(img: &ImageData) -> u64 {
     h.finish()
 }
 
-fn decode_image(img: &ImageData) -> Option<egui::ColorImage> {
-    let mut decoded = image::load_from_memory(&img.encoded).ok()?;
+fn image_key(img: &ImageData) -> u64 {
+    bytes_key(&img.encoded, img.width_px, img.height_px)
+}
+
+fn decode_bytes(encoded: &[u8]) -> Option<egui::ColorImage> {
+    let mut decoded = image::load_from_memory(encoded).ok()?;
     if decoded.width() > MAX_TEXTURE_SIDE || decoded.height() > MAX_TEXTURE_SIDE {
         decoded = decoded.thumbnail(MAX_TEXTURE_SIDE, MAX_TEXTURE_SIDE);
     }
     let rgba = decoded.to_rgba8();
     Some(egui::ColorImage::from_rgba_unmultiplied([rgba.width() as usize, rgba.height() as usize], rgba.as_raw()))
+}
+
+fn decode_image(img: &ImageData) -> Option<egui::ColorImage> {
+    decode_bytes(&img.encoded)
 }
 
 /// The three registration marks as axis-aligned filled rectangles (page mm).
@@ -309,25 +319,49 @@ impl Canvas {
                 .iter()
                 .flat_map(|l| l.points.iter())
                 .fold(None::<Rect>, |acc, p| Some(acc.map_or(Rect::from_points(*p, *p), |r| r.union_pt(*p))));
-            self.cache.insert(o.id, Cached { key, lines, bbox });
+            let (mut fill_verts, mut fill_indices) = (Vec::new(), Vec::new());
+            if o.style.fill.is_some() || o.style.fill_pattern.is_some() {
+                for p in o.page_paths() {
+                    let (v, idx) = ss_geom::triangulate::triangulate_path(&p, o.fill_rule(), RENDER_TOLERANCE);
+                    let base = fill_verts.len() as u32;
+                    fill_verts.extend(v);
+                    fill_indices.extend(idx.into_iter().map(|i| base + i));
+                }
+            }
+            self.cache.insert(o.id, Cached { key, lines, bbox, fill_verts, fill_indices });
         }
         if self.cache.len() != seen.len() {
             self.cache.retain(|id, _| seen.contains(id));
         }
     }
 
-    /// Uploads textures for the background and every visible image, and drops unused ones.
+    /// Uploads textures for the background, every visible image, and pattern fills, and drops unused ones.
     fn refresh_textures(&mut self, ctx: &egui::Context, editor: &Editor) {
         let mut images: Vec<&ImageData> = editor.doc.background.iter().collect();
+        let mut patterns = Vec::new();
         for o in editor.doc.visible_objects() {
             images.extend(o.page_images().into_iter().map(|(img, _)| img));
+            if let Some(pat) = &o.style.fill_pattern {
+                patterns.push(pat);
+            }
         }
-        let mut used = HashSet::with_capacity(images.len());
+        let mut used = HashSet::with_capacity(images.len() + patterns.len());
         for img in images {
             let key = image_key(img);
             used.insert(key);
             self.textures.entry(key).or_insert_with(|| {
                 decode_image(img).map(|ci| ctx.load_texture(format!("image-{key:x}"), ci, egui::TextureOptions::LINEAR))
+            });
+        }
+        for pat in patterns {
+            let key = bytes_key(&pat.encoded, pat.width_px, pat.height_px);
+            used.insert(key);
+            self.textures.entry(key).or_insert_with(|| {
+                let opts = egui::TextureOptions {
+                    wrap_mode: egui::TextureWrapMode::Repeat,
+                    ..egui::TextureOptions::LINEAR
+                };
+                decode_bytes(&pat.encoded).map(|ci| ctx.load_texture(format!("pattern-{key:x}"), ci, opts))
             });
         }
         self.textures.retain(|k, _| used.contains(k));
@@ -818,14 +852,60 @@ impl Canvas {
             for (img, im) in o.page_images() {
                 shapes.extend(self.image_shape(origin, img, m * im));
             }
-            let color = if o.cut == CutAction::NoCut { Color32::from_gray(150) } else { color32(o.style.stroke) };
-            let stroke = Stroke::new(if sel { 1.8 } else { 1.0 }, color);
-            for l in &c.lines {
-                let pts = self.screen_points(origin, &l.points, m);
-                if pts.len() < 2 {
-                    continue;
+            if !c.fill_indices.is_empty() {
+                if let Some(pat) = &o.style.fill_pattern
+                    && let Some(Some(tex)) = self.textures.get(&bytes_key(&pat.encoded, pat.width_px, pat.height_px))
+                {
+                    let mut mesh = egui::Mesh::with_texture(tex.id());
+                    let tw = pat.tile_width_mm.max(1.0) as f32;
+                    let th = pat.tile_height_mm.max(1.0) as f32;
+                    mesh.vertices.extend(c.fill_verts.iter().map(|&pt| {
+                        let tp = m * pt;
+                        egui::epaint::Vertex {
+                            pos: v.to_screen(origin, tp),
+                            uv: pos2(pt.x as f32 / tw, pt.y as f32 / th),
+                            color: Color32::WHITE,
+                        }
+                    }));
+                    mesh.indices.extend_from_slice(&c.fill_indices);
+                    shapes.push(Shape::mesh(mesh));
+                } else if let Some(fill) = o.style.fill
+                    && fill.a > 0
+                {
+                    let mut mesh = egui::Mesh::default();
+                    let fc = color32(fill);
+                    mesh.vertices.extend(c.fill_verts.iter().map(|&pt| egui::epaint::Vertex {
+                        pos: v.to_screen(origin, m * pt),
+                        uv: egui::epaint::WHITE_UV,
+                        color: fc,
+                    }));
+                    mesh.indices.extend_from_slice(&c.fill_indices);
+                    shapes.push(Shape::mesh(mesh));
                 }
-                shapes.push(if l.closed { Shape::closed_line(pts, stroke) } else { Shape::line(pts, stroke) });
+            }
+            if sel || o.style.stroke.a > 0 {
+                let color = if o.style.stroke.a == 0 {
+                    SELECTION_COLOR
+                } else if o.cut == CutAction::NoCut {
+                    Color32::from_gray(150)
+                } else {
+                    color32(o.style.stroke)
+                };
+                let width = if sel {
+                    1.8
+                } else if o.style.stroke_width_mm > 0.0 {
+                    (o.style.stroke_width_mm as f32 * v.zoom).max(1.0)
+                } else {
+                    1.0
+                };
+                let stroke = Stroke::new(width, color);
+                for l in &c.lines {
+                    let pts = self.screen_points(origin, &l.points, m);
+                    if pts.len() < 2 {
+                        continue;
+                    }
+                    shapes.push(if l.closed { Shape::closed_line(pts, stroke) } else { Shape::line(pts, stroke) });
+                }
             }
         }
         for s in &self.overlay {
