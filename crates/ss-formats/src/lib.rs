@@ -77,7 +77,24 @@ pub fn detect(data: &[u8], path: Option<&Path>) -> Option<FileKind> {
     }
 }
 
+fn gunzip(data: &[u8]) -> Option<Vec<u8>> {
+    use std::io::Read as _;
+    if !data.starts_with(b"\x1f\x8b") {
+        return None;
+    }
+    let mut out = Vec::new();
+    flate2::read::GzDecoder::new(data).read_to_end(&mut out).ok().map(|_| out)
+}
+
 pub fn open_bytes(data: &[u8], path: Option<&Path>) -> Result<Document, FormatError> {
+    let inflated;
+    let data = match gunzip(data) {
+        Some(d) => {
+            inflated = d;
+            &inflated[..]
+        }
+        None => data,
+    };
     match detect(data, path).ok_or(FormatError::Unknown)? {
         FileKind::Studio => Ok(studio::to_document(&studio::parse(data)?)),
         FileKind::Svg => Ok(svg::import(&strip_bom_utf8(data), &svg::SvgImportOptions { load_system_fonts: true })?),
@@ -95,6 +112,12 @@ pub fn save(doc: &Document, path: &Path) -> Result<(), FormatError> {
     let ext = path.extension().map(|e| e.to_string_lossy().to_ascii_lowercase());
     let bytes = match ext.as_deref() {
         Some("svg") => svg::export(doc).into_bytes(),
+        Some("svgz") => {
+            use std::io::Write as _;
+            let mut e = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+            e.write_all(svg::export(doc).as_bytes())?;
+            e.finish()?
+        }
         Some("dxf") => dxf_io::export(doc, 0.01)?,
         _ => doc.to_json()?.into_bytes(),
     };
@@ -125,7 +148,7 @@ mod tests {
         doc.objects.push(ss_doc::Object::path("r", l, ss_geom::Shape::to_path(&ss_geom::Rect::new(1.0, 2.0, 3.0, 4.0), 0.0)));
         let dir = std::env::temp_dir().join(format!("ssfmt-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        for ext in ["ssrs", "svg", "dxf"] {
+        for ext in ["ssrs", "svg", "svgz", "dxf"] {
             let p = dir.join(format!("t.{ext}"));
             save(&doc, &p).unwrap();
             let back = open(&p).unwrap();

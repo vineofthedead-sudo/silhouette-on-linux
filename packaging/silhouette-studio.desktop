@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Silhouette Studio
+GenericName=Vinyl Cutter Design
+Comment=Design cutting files and send them to Silhouette craft cutters
+Exec=silhouette-studio %f
+Icon=silhouette-studio
+Terminal=false
+Categories=Graphics;2DGraphics;VectorGraphics;
+MimeType=application/x-silhouette-studio;image/svg+xml;
+Keywords=vinyl;cutter;plotter;silhouette;cameo;portrait;craft;
+StartupNotify=true
+StartupWMClass=silhouette-studio

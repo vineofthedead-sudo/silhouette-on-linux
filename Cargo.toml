@@ -23,7 +23,6 @@ i_overlay = "9.2"
 usvg      = "0.50"
 dxf       = "0.6"
 flate2    = "1.1"
-byteorder = "1.5"
 png       = "0.18"
 
 rusb              = "0.9"

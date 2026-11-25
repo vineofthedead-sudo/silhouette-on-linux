@@ -10,6 +10,7 @@ license.workspace = true
 ss-geom.workspace = true
 ss-doc.workspace = true
 usvg.workspace = true
+flate2.workspace = true
 dxf.workspace = true
 thiserror.workspace = true
 serde_json.workspace = true

@@ -1,0 +1,40 @@
+# Maintainer: local build
+pkgname=silhouette-studio-rs
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Native Linux design and cutting application for Silhouette craft cutters"
+arch=('x86_64')
+url="https://example.invalid/silhouette-studio-rs"
+license=('GPL-3.0-or-later')
+depends=('libusb' 'wayland' 'libxcb' 'libxkbcommon' 'xdg-desktop-portal')
+makedepends=('cargo')
+options=('!lto')
+source=()
+sha256sums=()
+
+# The package builds from this repository checkout (parent of packaging/).
+_srcroot="$startdir/.."
+
+prepare() {
+    cd "$_srcroot"
+    cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+    cd "$_srcroot"
+    CARGO_TARGET_DIR="$srcdir/target" cargo build --frozen --release -p ss-app -p ss-cli
+}
+
+check() {
+    cd "$_srcroot"
+    CARGO_TARGET_DIR="$srcdir/target" cargo test --frozen --workspace --exclude ss-app
+}
+
+package() {
+    install -Dm755 "$srcdir/target/release/silhouette-studio" "$pkgdir/usr/bin/silhouette-studio"
+    install -Dm755 "$srcdir/target/release/ss-cli" "$pkgdir/usr/bin/ss-cli"
+    install -Dm644 "$_srcroot/packaging/silhouette-studio.desktop" "$pkgdir/usr/share/applications/silhouette-studio.desktop"
+    install -Dm644 "$_srcroot/packaging/silhouette-studio.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/silhouette-studio.svg"
+    install -Dm644 "$_srcroot/packaging/70-silhouette-cutters.rules" "$pkgdir/usr/lib/udev/rules.d/70-silhouette-cutters.rules"
+    install -Dm644 "$_srcroot/packaging/silhouette-studio.xml" "$pkgdir/usr/share/mime/packages/silhouette-studio.xml"
+}
