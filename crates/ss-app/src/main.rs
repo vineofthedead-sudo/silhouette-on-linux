@@ -22,6 +22,7 @@ fn main() -> eframe::Result {
         viewport: egui::ViewportBuilder::default()
             .with_title("Silhouette Studio")
             .with_app_id("silhouette-studio")
+            .with_decorations(true)
             .with_inner_size([1280.0, 820.0])
             .with_min_inner_size([720.0, 480.0]),
         ..Default::default()

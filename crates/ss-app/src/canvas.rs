@@ -49,26 +49,27 @@ pub fn tool_key(tool: Tool) -> Key {
     }
 }
 
-/// Screen position = canvas origin + `offset` + document mm × `zoom`.
+/// Screen position = canvas centre + `offset` + document mm × `zoom`.
 #[derive(Debug, Clone, Copy)]
 pub struct View {
+    /// Offset in screen points from the canvas centre to document `(0, 0)`.
     pub offset: egui::Vec2,
     pub zoom: f32,
 }
 
 impl Default for View {
     fn default() -> Self {
-        Self { offset: vec2(40.0, 40.0), zoom: 2.0 }
+        Self { offset: vec2(-150.0, -150.0), zoom: 2.0 }
     }
 }
 
 impl View {
-    pub fn to_screen(self, origin: Pos2, p: Point) -> Pos2 {
-        pos2(origin.x + self.offset.x + p.x as f32 * self.zoom, origin.y + self.offset.y + p.y as f32 * self.zoom)
+    pub fn to_screen(self, center: Pos2, p: Point) -> Pos2 {
+        pos2(center.x + self.offset.x + p.x as f32 * self.zoom, center.y + self.offset.y + p.y as f32 * self.zoom)
     }
 
-    pub fn to_doc(self, origin: Pos2, s: Pos2) -> Point {
-        Point::new(f64::from((s.x - origin.x - self.offset.x) / self.zoom), f64::from((s.y - origin.y - self.offset.y) / self.zoom))
+    pub fn to_doc(self, center: Pos2, s: Pos2) -> Point {
+        Point::new(f64::from((s.x - center.x - self.offset.x) / self.zoom), f64::from((s.y - center.y - self.offset.y) / self.zoom))
     }
 
     fn fit(&mut self, canvas: egui::Rect, r: Rect) {
@@ -77,13 +78,13 @@ impl View {
         let h = (canvas.height() - 2.0 * margin).max(20.0);
         self.zoom = (w / r.width().max(1.0) as f32).min(h / r.height().max(1.0) as f32).clamp(MIN_ZOOM, MAX_ZOOM);
         let c = r.center();
-        self.offset = canvas.center() - canvas.min - vec2(c.x as f32 * self.zoom, c.y as f32 * self.zoom);
+        self.offset = vec2(-c.x as f32 * self.zoom, -c.y as f32 * self.zoom);
     }
 
-    fn zoom_at(&mut self, origin: Pos2, at: Pos2, factor: f32) {
-        let d = self.to_doc(origin, at);
+    fn zoom_at(&mut self, center: Pos2, at: Pos2, factor: f32) {
+        let d = self.to_doc(center, at);
         self.zoom = (self.zoom * factor).clamp(MIN_ZOOM, MAX_ZOOM);
-        self.offset = at - origin - vec2(d.x as f32 * self.zoom, d.y as f32 * self.zoom);
+        self.offset = at - center - vec2(d.x as f32 * self.zoom, d.y as f32 * self.zoom);
     }
 }
 
@@ -128,6 +129,8 @@ pub struct Canvas {
     pub view: View,
     pub mat: CuttingMat,
     pending_fit: Option<Rect>,
+    /// Kept set while the user has not manually panned or zoomed, so viewport resizes re-fit.
+    auto_fit: Option<Rect>,
     last_rect: egui::Rect,
     drag: Drag,
     /// Live transform of the selection while dragging; committed as one undo step on release.
@@ -160,6 +163,7 @@ impl Default for Canvas {
             view: View::default(),
             mat: CuttingMat::default(),
             pending_fit: None,
+            auto_fit: None,
             last_rect: egui::Rect::NOTHING,
             drag: Drag::None,
             preview: Affine::IDENTITY,
@@ -286,15 +290,25 @@ pub fn color32(c: ss_doc::Rgba) -> Color32 {
 }
 
 impl Canvas {
+    /// Combined page and cutting-mat bounds in document mm for fitting into the viewport.
+    pub fn fit_rect(&self, page: Rect) -> Rect {
+        match self.mat.size_mm() {
+            Some((w, h)) => page.union(Rect::new(-8.0, -20.0, w + 8.0, h + 8.0)),
+            None => page,
+        }
+    }
+
     pub fn fit_to(&mut self, r: Rect) {
         self.pending_fit = Some(r);
+        self.auto_fit = Some(r);
     }
 
     /// Zooms around the centre of the canvas.
     pub fn zoom_by(&mut self, factor: f32) {
+        self.auto_fit = None;
         if self.last_rect.is_positive() {
             let r = self.last_rect;
-            self.view.zoom_at(r.min, r.center(), factor);
+            self.view.zoom_at(r.center(), r.center(), factor);
         }
     }
 
@@ -592,9 +606,12 @@ impl Canvas {
         let tool = tool_state.active();
         let (resp, painter) = ui.allocate_painter(ui.available_size(), Sense::click_and_drag());
         let rect = resp.rect;
+        let resized = self.last_rect.is_positive() && (rect.size() - self.last_rect.size()).length_sq() > 0.25;
         self.last_rect = rect;
-        let origin = rect.min;
+        let origin = rect.center();
         if let Some(r) = self.pending_fit.take() {
+            self.view.fit(rect, r);
+        } else if resized && let Some(r) = self.auto_fit {
             self.view.fit(rect, r);
         }
         self.refresh_cache(editor);
@@ -607,13 +624,16 @@ impl Canvas {
         let typing = typing || ui.ctx().egui_wants_keyboard_input();
         if let Some(h) = resp.hover_pos() {
             if zoom_delta != 1.0 {
+                self.auto_fit = None;
                 self.view.zoom_at(origin, h, zoom_delta);
             } else if scroll != egui::Vec2::ZERO {
+                self.auto_fit = None;
                 self.view.offset += scroll;
             }
         }
         let panning = resp.dragged_by(PointerButton::Middle) || (space && !typing && resp.dragged_by(PointerButton::Primary));
         if panning {
+            self.auto_fit = None;
             self.view.offset += resp.drag_delta();
         }
         self.cursor_mm = resp.hover_pos().map(|p| self.view.to_doc(origin, p));
@@ -1516,6 +1536,27 @@ fn context_menu(ui: &mut egui::Ui, editor: &Editor, actions: &mut Vec<Action>) {
         if ui.add_enabled(enabled, egui::Button::new(label)).clicked() {
             actions.push(action);
             ui.close();
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn view_fit_centers_rect_at_any_aspect_ratio_and_keeps_center_on_resize() {
+        let target = Rect::new(-8.0, -20.0, 312.8, 312.8);
+        for (w, h) in [(800.0, 600.0), (1920.0, 1080.0), (500.0, 1200.0)] {
+            let canvas = egui::Rect::from_min_size(pos2(96.0, 28.0), vec2(w, h));
+            let mut v = View::default();
+            v.fit(canvas, target);
+            let mapped_center = v.to_screen(canvas.center(), target.center());
+            assert!((mapped_center - canvas.center()).length() < 1e-3);
+            let tl = v.to_screen(canvas.center(), Point::new(target.x0, target.y0));
+            let br = v.to_screen(canvas.center(), Point::new(target.x1, target.y1));
+            assert!(tl.x >= canvas.min.x && tl.y >= canvas.min.y);
+            assert!(br.x <= canvas.max.x && br.y <= canvas.max.y);
         }
     }
 }

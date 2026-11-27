@@ -184,7 +184,7 @@ impl StudioApp {
         };
         app.editor.tolerance = app.settings.curve_tolerance_mm;
         app.apply_theme(&cc.egui_ctx);
-        app.canvas.fit_to(app.editor.doc.page.rect());
+        app.canvas.fit_to(app.canvas.fit_rect(app.editor.doc.page.rect()));
         if let Some(f) = file {
             app.open_path(f);
         }
@@ -217,7 +217,7 @@ impl StudioApp {
         self.canvas.overlay.clear();
         self.canvas.trace_preview.clear();
         self.trace.reset();
-        let page = self.editor.doc.page.rect();
+        let page = self.canvas.fit_rect(self.editor.doc.page.rect());
         let r = self.editor.doc.bounds().map_or(page, |b| b.union(page));
         self.canvas.fit_to(r);
     }
@@ -616,7 +616,7 @@ impl StudioApp {
                 let r = self.editor.set_cut_action(c);
                 self.report(r);
             }
-            Action::ZoomPage => self.canvas.fit_to(self.editor.doc.page.rect()),
+            Action::ZoomPage => self.canvas.fit_to(self.canvas.fit_rect(self.editor.doc.page.rect())),
             Action::ZoomSelection => {
                 let ids = if self.editor.selection.is_empty() {
                     self.editor.doc.objects.iter().map(|o| o.id).collect()
@@ -777,7 +777,7 @@ impl StudioApp {
                 });
             });
             ui.menu_button("View", |ui| {
-                item(ui, "Zoom to page", Action::ZoomPage, true, actions);
+                item(ui, "Fit", Action::ZoomPage, true, actions);
                 item(ui, "Zoom to selection", Action::ZoomSelection, true, actions);
                 item(ui, "Actual size", Action::ZoomActual, true, actions);
                 item(ui, "Zoom in", Action::ZoomIn, true, actions);
@@ -804,6 +804,13 @@ impl StudioApp {
                 }
             });
             ui.menu_button("Help", |ui| item(ui, "About", Action::About, true, actions));
+            let avail = egui::vec2(ui.available_width(), ui.available_height().max(ui.spacing().interact_size.y));
+            if avail.x > 0.0 && avail.y > 0.0 {
+                let drag = ui.allocate_response(avail, egui::Sense::click_and_drag());
+                if drag.drag_started_by(egui::PointerButton::Primary) {
+                    ui.ctx().send_viewport_cmd(ViewportCommand::StartDrag);
+                }
+            }
         });
     }
 
@@ -960,7 +967,7 @@ impl StudioApp {
         }
     }
 
-    fn status_bar(&self, ui: &mut egui::Ui) {
+    fn status_bar(&self, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
         let (f, unit) = units(self.settings.units);
         egui::Sides::new().shrink_right().truncate().show(
             ui,
@@ -971,6 +978,9 @@ impl StudioApp {
                 };
                 ui.separator();
                 ui.label(format!("{:.0} %", self.canvas.view.zoom / crate::canvas::ACTUAL_SIZE_ZOOM * 100.0));
+                if ui.small_button("Fit").on_hover_text("Center and fit cutting mat in the viewport").clicked() {
+                    actions.push(Action::ZoomPage);
+                }
                 ui.separator();
                 ui.label(format!("{} objects, {} selected", self.editor.doc.objects.len(), self.editor.selection.len()));
                 ui.separator();
@@ -1023,7 +1033,7 @@ impl eframe::App for StudioApp {
         let mut actions = Vec::new();
         self.keyboard(&ctx, &mut actions);
         egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui, &mut actions));
-        egui::Panel::bottom("status").show(ui, |ui| self.status_bar(ui));
+        egui::Panel::bottom("status").show(ui, |ui| self.status_bar(ui, &mut actions));
         egui::Panel::left("tools").resizable(false).exact_size(96.0).show(ui, |ui| {
             ui.add_space(4.0);
             for t in Tool::ALL {
@@ -1062,7 +1072,7 @@ impl eframe::App for StudioApp {
                         self.save_settings();
                     }
                     if change.page {
-                        self.canvas.fit_to(self.editor.doc.page.rect());
+                        self.canvas.fit_to(self.canvas.fit_rect(self.editor.doc.page.rect()));
                     }
                 });
                 egui::CollapsingHeader::new("Send").default_open(true).show(ui, |ui| {
