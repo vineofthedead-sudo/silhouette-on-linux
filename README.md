@@ -23,7 +23,7 @@ protocol — no Windows, no Wine, no virtual machine.
 | Feature area | Status | Notes |
 |---|---|---|
 | Design canvas (pan, zoom, grid, snap, cut border) | ✅ Implemented | |
-| Drawing tools (select, edit points, rectangle, ellipse, line, polyline, freehand) | ✅ Implemented | Freehand input is fitted to smooth Béziers; Edit Points supports live node/handle dragging, point insertion, and deletion |
+| Drawing tools (select, edit points, rectangle, ellipse, line, polyline, freehand) | ✅ Implemented | Freehand input is fitted to smooth Béziers; Edit Points supports live node/handle dragging, insertion, deletion, Break Path, Corner/Smooth, Make Flat/Curve, and Simplify |
 | Selection & transforms (move, scale, rotate, flip, align, distribute) | ✅ Implemented | Handles + numeric entry, single undo step per gesture |
 | Group / ungroup, compound paths, group by colour | ✅ Implemented | |
 | Boolean weld / subtract / intersect | ✅ Implemented | |
@@ -40,7 +40,7 @@ protocol — no Windows, no Wine, no virtual machine.
 | SVG / SVGZ import & export | ✅ Implemented | Including gzip and UTF-8/UTF-16 variants, embedded images, background and registration marks |
 | DXF import & export | ✅ Implemented | |
 | Native project format (`.ssrs`) | ✅ Implemented | Lossless JSON format, versioned |
-| GPGL job generation | ✅ Implemented | Force, speed, passes, blade offset, overcut, perforation dashes, media clipping, cut-order optimisation; images are never cut |
+| GPGL job generation | ✅ Implemented | Force, speed, passes, blade depth (`TC`), blade offset, overcut, perforation dashes, media clipping, multi-stage tool/pause sequences, cut-order optimisation; images are never cut |
 | USB cutter communication | 🚧 Partial / experimental | Full libusb transport + job runner; model database from Craft Robo through Cameo 5 Alpha. **Not yet validated on real hardware** |
 | Dual-carriage (tool holder 2) | 🚧 Partial / experimental | GPGL sequences implemented, unverified on hardware |
 | Print & Cut (registration marks) | 🚧 Partial / experimental | Type 1 marks on the canvas and in SVG export; GPGL mark search (automatic or manual) checked against inkscape-silhouette's values. **Not yet tested on a cutter** |

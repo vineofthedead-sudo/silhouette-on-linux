@@ -457,6 +457,7 @@ fn send(
             blade_offset: if pen { 0 } else { blade_offset },
             overcut_mm: if pen { 0.0 } else { overcut },
             tool_holder: None,
+            blade_depth: None,
         },
         track_enhancing,
         end: match end {

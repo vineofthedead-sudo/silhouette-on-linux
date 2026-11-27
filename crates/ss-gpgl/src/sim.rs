@@ -24,8 +24,10 @@ pub struct Simulation {
     pub force: Option<u32>,
     pub speed: Option<u32>,
     pub blade_offset: Option<u32>,
+    pub blade_depth: Option<u32>,
     pub track_enhancing: Option<bool>,
     pub tool_holder: Option<u8>,
+    pub homes: usize,
     /// Media size from `FU`, in mm (width, height).
     pub media_mm: Option<(f64, f64)>,
     /// Registration mark arm length (`TB51`) and thickness (`TB53`), mm.
@@ -84,8 +86,8 @@ impl Simulation {
         let bad = |s: &mut Self| s.errors.push(c.to_string());
         let first_u32 = |args: &str| numbers(args).and_then(|v| v.first().map(|f| *f as u32));
         // Longest prefixes first.
-        const PREFIXES: [&str; 20] =
-            ["FN", "FU", "FC", "FY", "FX", "FM", "FO", "FE", "FF", "FG", "TB", "BZ", "J", "M", "D", "H", "!", "&", "\\", "Z"];
+        const PREFIXES: [&str; 21] =
+            ["FN", "FU", "FC", "FY", "FX", "FM", "FO", "FE", "FF", "FG", "TB", "TC", "BZ", "J", "M", "D", "H", "!", "&", "\\", "Z"];
         let Some(p) = PREFIXES.iter().find(|p| c.starts_with(**p)) else {
             self.unknown.push(c.to_string());
             return;
@@ -121,6 +123,7 @@ impl Simulation {
             "H" => {
                 self.move_to(pen, Point::ZERO);
                 self.homed = true;
+                self.homes += 1;
             }
             "FU" => match numbers(args).as_deref() {
                 Some([h, w]) => self.media_mm = Some((from_units(*w), from_units(*h))),
@@ -136,6 +139,10 @@ impl Simulation {
             },
             "FC" => match first_u32(args) {
                 Some(v) => self.blade_offset = Some(v),
+                None => bad(self),
+            },
+            "TC" => match first_u32(args) {
+                Some(v) => self.blade_depth = Some(v),
                 None => bad(self),
             },
             "FY" => match first_u32(args) {

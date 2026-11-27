@@ -193,28 +193,83 @@ impl Editor {
         self.dirty = true;
     }
 
-    pub fn delete_path_node(&mut self, id: ObjectId, node: NodeId) -> Result<(), EditError> {
+    fn edit_path_nodes<T>(
+        &mut self,
+        id: ObjectId,
+        label: &str,
+        f: impl FnOnce(&mut NodePath) -> Result<T, EditError>,
+    ) -> Result<T, EditError> {
         let mut np = self.path_nodes(id).ok_or(EditError::NotApplicable("Edit Points needs a single path"))?;
-        np.delete_node(node).map_err(EditError::Invalid)?;
+        let out = f(&mut np)?;
         let path = np.to_bez();
-        self.apply("Delete Point", |d, _| {
+        self.apply(label, |d, _| {
             if let Some(ObjectKind::Path { path: p, .. }) = d.find_mut(id).map(|o| &mut o.kind) {
                 *p = SharedPath::new(path);
             }
-            Ok(())
+            Ok(out)
         })
+    }
+
+    pub fn delete_path_node(&mut self, id: ObjectId, node: NodeId) -> Result<(), EditError> {
+        self.edit_path_nodes(id, "Delete Point", |np| np.delete_node(node).map_err(EditError::Invalid))
     }
 
     /// Adds a node on the segment of path `id` nearest `local_pt` (the path's own coordinates).
     pub fn insert_path_node(&mut self, id: ObjectId, local_pt: Point, tol: f64) -> Result<NodeId, EditError> {
+        self.edit_path_nodes(id, "Add Point", |np| {
+            np.insert_at(local_pt, tol).ok_or(EditError::NotApplicable("No line under the pointer"))
+        })
+    }
+
+    /// Splits a closed or continuous subpath at `node` into open endpoints. Breaking a closed
+    /// shape removes its fill attributes, matching Silhouette Studio's Edit Points behavior.
+    pub fn break_path_node(&mut self, id: ObjectId, node: NodeId) -> Result<NodeId, EditError> {
         let mut np = self.path_nodes(id).ok_or(EditError::NotApplicable("Edit Points needs a single path"))?;
-        let node = np.insert_at(local_pt, tol).ok_or(EditError::NotApplicable("No line under the pointer"))?;
+        let (endpoint, broke_closed) = np.break_at(node).map_err(EditError::Invalid)?;
         let path = np.to_bez();
-        self.apply("Add Point", |d, _| {
-            if let Some(ObjectKind::Path { path: p, .. }) = d.find_mut(id).map(|o| &mut o.kind) {
-                *p = SharedPath::new(path);
+        self.apply("Break Path", |d, _| {
+            if let Some(obj) = d.find_mut(id) {
+                if let ObjectKind::Path { path: p, .. } = &mut obj.kind {
+                    *p = SharedPath::new(path);
+                }
+                if broke_closed {
+                    obj.style.fill = None;
+                    obj.style.fill_pattern = None;
+                }
             }
-            Ok(node)
+            Ok(endpoint)
+        })
+    }
+
+    pub fn set_node_smooth(&mut self, id: ObjectId, node: NodeId, smooth: bool) -> Result<(), EditError> {
+        let label = if smooth { "Smooth Point" } else { "Corner Point" };
+        self.edit_path_nodes(id, label, |np| np.set_smooth(node, smooth).map_err(EditError::Invalid))
+    }
+
+    pub fn set_segment_curved(&mut self, id: ObjectId, node: NodeId, curved: bool) -> Result<(), EditError> {
+        let label = if curved { "Make Curve" } else { "Make Flat" };
+        self.edit_path_nodes(id, label, |np| np.set_segment_curved(node, curved).map_err(EditError::Invalid))
+    }
+
+    /// Reduces redundant points on path `id` within `tolerance_mm`. Returns `(before, after)` node counts.
+    pub fn simplify_path(&mut self, id: ObjectId, tolerance_mm: f64) -> Result<(usize, usize), EditError> {
+        let (before_path, before_count) = match &self.doc.find(id).ok_or(EditError::NotApplicable("Edit Points needs a single path"))?.kind {
+            ObjectKind::Path { path, .. } => (
+                (**path).clone(),
+                NodePath::from_bez(path).subs.iter().map(|s| s.nodes.len()).sum::<usize>(),
+            ),
+            _ => return Err(EditError::NotApplicable("Edit Points needs a single path")),
+        };
+        let simplified = ss_geom::nodes::simplify_path(&before_path, tolerance_mm);
+        if simplified.elements().is_empty() {
+            return Err(EditError::EmptyResult);
+        }
+        let after_count: usize = NodePath::from_bez(&simplified).subs.iter().map(|s| s.nodes.len()).sum();
+        self.apply("Simplify Path", |d, _| {
+            if let Some(ObjectKind::Path { path: p, .. }) = d.find_mut(id).map(|o| &mut o.kind) {
+                *p = SharedPath::new(simplified);
+            }
+            Ok((before_count, after_count))
         })
     }
 }
@@ -294,7 +349,7 @@ mod tests {
     fn trace_is_placed_over_the_image_in_page_coordinates() {
         let mut ed = Editor::new(Document::default());
         let layer = ed.doc.default_layer();
-        let img = ImageData { encoded: Vec::new(), width_px: 10, height_px: 10, rect: [0.0, 0.0, 50.0, 50.0] };
+        let img = ImageData { encoded: SharedBytes::default(), width_px: 10, height_px: 10, rect: [0.0, 0.0, 50.0, 50.0] };
         let mut o = Object::image("Picture", layer, img);
         o.transform = Affine::translate((20.0, 30.0));
         let src = o.id;
@@ -337,5 +392,39 @@ mod tests {
         assert_eq!(ed.undo().as_deref(), Some("Delete Point"));
         assert_eq!(ed.undo().as_deref(), Some("Add Point"));
         assert!(ed.insert_path_node(id, Point::new(50.0, 50.0), 0.1).is_err());
+    }
+
+    #[test]
+    fn advanced_edit_points_ops_are_undoable() {
+        let (mut ed, id) = editor_with_square();
+        ed.doc.find_mut(id).unwrap().style.fill = Some(Rgba::RED);
+
+        let n0 = NodeId { sub: 0, index: 0 };
+        ed.set_segment_curved(id, n0, true).unwrap();
+        assert_eq!(ed.path_nodes(id).unwrap().segment_is_curved(n0), Some(true));
+
+        ed.set_node_smooth(id, n0, true).unwrap();
+        let node = ed.path_nodes(id).unwrap().node(n0).copied().unwrap();
+        assert!(node.smooth && node.hin.is_some() && node.hout.is_some());
+        ed.set_node_smooth(id, n0, false).unwrap();
+        assert_eq!(ed.undo().as_deref(), Some("Corner Point"));
+
+        ed.set_segment_curved(id, n0, false).unwrap();
+        assert_eq!(ed.path_nodes(id).unwrap().segment_is_curved(n0), Some(false));
+
+        let ep = ed.break_path_node(id, n0).unwrap();
+        assert_eq!(ep, n0);
+        assert!(!ed.path_nodes(id).unwrap().subs[0].closed);
+        assert!(ed.doc.find(id).unwrap().style.fill.is_none());
+        assert_eq!(ed.undo().as_deref(), Some("Break Path"));
+        assert!(ed.doc.find(id).unwrap().style.fill.is_some());
+
+        // Simplify collapses collinear inserted points back down to 4 corners.
+        let (mut ed2, id2) = editor_with_square();
+        ed2.insert_path_node(id2, Point::new(5.0, 0.0), 0.1).unwrap();
+        let (before, after) = ed2.simplify_path(id2, 0.1).unwrap();
+        assert_eq!(before, 5);
+        assert_eq!(after, 4);
+        assert_eq!(ed2.undo().as_deref(), Some("Simplify Path"));
     }
 }

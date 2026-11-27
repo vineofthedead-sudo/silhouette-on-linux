@@ -994,7 +994,7 @@ fn load_image(path: &Path) -> Result<ImageData, String> {
     if width_px == 0 || height_px == 0 {
         return Err("the image is empty".into());
     }
-    Ok(ImageData { encoded, width_px, height_px, rect: [0.0; 4] })
+    Ok(ImageData { encoded: encoded.into(), width_px, height_px, rect: [0.0; 4] })
 }
 
 fn display_name(p: &Path) -> String {
@@ -1040,6 +1040,9 @@ impl eframe::App for StudioApp {
                 if matches!(tool, Tool::Eraser | Tool::Knife | Tool::EditPoints) {
                     egui::CollapsingHeader::new("Tool Options").default_open(true).show(ui, |ui| {
                         ui.weak(tool.hint());
+                        if tool == Tool::EditPoints {
+                            self.canvas.edit_points_ui(ui, &mut self.editor, &mut self.status);
+                        }
                         if tool == Tool::Eraser {
                             ui.horizontal(|ui| {
                                 ui.label("Brush");
@@ -1063,8 +1066,11 @@ impl eframe::App for StudioApp {
                     }
                 });
                 egui::CollapsingHeader::new("Send").default_open(true).show(ui, |ui| {
-                    self.send.ui(ui, &self.editor);
+                    self.send.ui(ui, &self.editor, &mut self.status);
                 });
+                if let Some(overlay) = self.send.poll(&ctx, &mut self.status) {
+                    self.canvas.overlay = overlay;
+                }
                 let trace_open = egui::CollapsingHeader::new("Auto-Trace").show(ui, |ui| {
                     self.trace.ui(ui, &mut self.editor, self.active_layer, &mut self.canvas, &mut self.status);
                 });

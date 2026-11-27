@@ -146,6 +146,10 @@ pub struct Canvas {
     /// Edit Points: the selected node of the single selected path.
     selected_node: Option<(ObjectId, NodeId)>,
     node_drag: Option<NodeEdit>,
+    /// Nodes explicitly toggled to Corner while their handles are still collinear.
+    corner_nodes: HashSet<(ObjectId, usize, usize)>,
+    /// Simplify tolerance (mm) for Edit Points Tool Options.
+    pub simplify_tolerance_mm: f64,
     /// Auto-Trace preview contours in page mm, drawn over the design.
     pub trace_preview: Vec<Vec<Point>>,
 }
@@ -169,6 +173,8 @@ impl Default for Canvas {
             eraser_shape: BrushShape::Round,
             selected_node: None,
             node_drag: None,
+            corner_nodes: HashSet::new(),
+            simplify_tolerance_mm: 0.2,
             trace_preview: Vec::new(),
         }
     }
@@ -332,6 +338,111 @@ impl Canvas {
             Err(e) => *status = e.to_string(),
         }
         true
+    }
+
+    pub fn break_selected_node(&mut self, editor: &mut Editor, status: &mut String) {
+        let Some((id, node)) = self.valid_node(editor) else { return };
+        match editor.break_path_node(id, node) {
+            Ok(ep) => {
+                self.selected_node = Some((id, ep));
+                *status = "Broke path at selected point".into();
+            }
+            Err(e) => *status = e.to_string(),
+        }
+    }
+
+    pub fn set_selected_node_smooth(&mut self, editor: &mut Editor, smooth: bool, status: &mut String) {
+        let Some((id, node)) = self.valid_node(editor) else { return };
+        match editor.set_node_smooth(id, node, smooth) {
+            Ok(()) => {
+                if smooth {
+                    self.corner_nodes.remove(&(id, node.sub, node.index));
+                } else {
+                    self.corner_nodes.insert((id, node.sub, node.index));
+                }
+                *status = if smooth { "Set point to Smooth" } else { "Set point to Corner" }.into();
+            }
+            Err(e) => *status = e.to_string(),
+        }
+    }
+
+    pub fn set_selected_segment_curved(&mut self, editor: &mut Editor, curved: bool, status: &mut String) {
+        let Some((id, node)) = self.valid_node(editor) else { return };
+        match editor.set_segment_curved(id, node, curved) {
+            Ok(()) => *status = if curved { "Converted segment to Curve" } else { "Converted segment to Flat" }.into(),
+            Err(e) => *status = e.to_string(),
+        }
+    }
+
+    pub fn simplify_selected_path(&mut self, editor: &mut Editor, status: &mut String) {
+        let Some((id, _)) = Self::sole_path(editor) else { return };
+        match editor.simplify_path(id, self.simplify_tolerance_mm) {
+            Ok((before, after)) => {
+                self.selected_node = None;
+                *status = format!("Simplified path: {before} → {after} points");
+            }
+            Err(e) => *status = e.to_string(),
+        }
+    }
+
+    /// Point Editing toolbar controls rendered inside Tool Options.
+    pub fn edit_points_ui(&mut self, ui: &mut egui::Ui, editor: &mut Editor, status: &mut String) {
+        let Some((id, _)) = Self::sole_path(editor) else {
+            ui.weak("Select one ungrouped path to edit its points.");
+            return;
+        };
+        let valid = self.valid_node(editor).map(|(_, n)| n);
+        let nodes = editor.path_nodes(id);
+        let is_smooth = valid
+            .and_then(|n| {
+                (!self.corner_nodes.contains(&(id, n.sub, n.index)))
+                    .then(|| nodes.as_ref()?.node(n).map(|nd| nd.smooth))
+                    .flatten()
+            })
+            .unwrap_or(false);
+        let seg_curved = valid.and_then(|n| nodes.as_ref()?.segment_is_curved(n));
+
+        ui.add_enabled_ui(valid.is_some(), |ui| {
+            ui.horizontal_wrapped(|ui| {
+                if ui.button("Break Path").on_hover_text("Split the path at the selected point").clicked() {
+                    self.break_selected_node(editor, status);
+                }
+                if ui.button("Delete Point").on_hover_text("Delete the selected point (Delete / Backspace)").clicked() {
+                    self.delete_selected_node(editor, status);
+                }
+            });
+            ui.horizontal_wrapped(|ui| {
+                if ui.selectable_label(!is_smooth, "Corner").on_hover_text("Independent sharp-corner handles").clicked() {
+                    self.set_selected_node_smooth(editor, false, status);
+                }
+                if ui.selectable_label(is_smooth, "Smooth").on_hover_text("Collinear smooth handles").clicked() {
+                    self.set_selected_node_smooth(editor, true, status);
+                }
+            });
+            ui.horizontal_wrapped(|ui| {
+                if ui
+                    .add_enabled(seg_curved == Some(true), egui::Button::new("Make Flat"))
+                    .on_hover_text("Convert the red segment to a straight line")
+                    .clicked()
+                {
+                    self.set_selected_segment_curved(editor, false, status);
+                }
+                if ui
+                    .add_enabled(seg_curved == Some(false), egui::Button::new("Make Curve"))
+                    .on_hover_text("Convert the red segment to a Bézier curve")
+                    .clicked()
+                {
+                    self.set_selected_segment_curved(editor, true, status);
+                }
+            });
+        });
+        ui.separator();
+        ui.horizontal(|ui| {
+            if ui.button("Simplify").on_hover_text("Reduce redundant points within tolerance").clicked() {
+                self.simplify_selected_path(editor, status);
+            }
+            ui.add(egui::DragValue::new(&mut self.simplify_tolerance_mm).range(0.02..=5.0).speed(0.02).suffix(" mm"));
+        });
     }
 
     /// The single selected, ungrouped path and its transform.
@@ -582,7 +693,38 @@ impl Canvas {
         }
 
         self.paint(&painter, rect, origin, editor, settings, tool, tool_state.gesture());
-        resp.context_menu(|ui| context_menu(ui, editor, actions));
+        let has_node = tool == Tool::EditPoints && self.valid_node(editor).is_some();
+        let mut node_cmd = None;
+        resp.context_menu(|ui| {
+            if has_node {
+                for (label, cmd) in [
+                    ("Delete Point", 0u8),
+                    ("Break Path", 1),
+                    ("Corner", 2),
+                    ("Smooth", 3),
+                    ("Make Flat", 4),
+                    ("Make Curve", 5),
+                ] {
+                    if ui.button(label).clicked() {
+                        node_cmd = Some(cmd);
+                        ui.close();
+                    }
+                }
+                ui.separator();
+            }
+            context_menu(ui, editor, actions);
+        });
+        match node_cmd {
+            Some(0) => {
+                self.delete_selected_node(editor, status);
+            }
+            Some(1) => self.break_selected_node(editor, status),
+            Some(2) => self.set_selected_node_smooth(editor, false, status),
+            Some(3) => self.set_selected_node_smooth(editor, true, status),
+            Some(4) => self.set_selected_segment_curved(editor, false, status),
+            Some(5) => self.set_selected_segment_curved(editor, true, status),
+            _ => {}
+        }
     }
 
     /// Knife and Eraser act when the drag ends: one undoable edit on every unlocked shape it touches.
@@ -700,6 +842,14 @@ impl Canvas {
                 };
                 self.selected_node = Some((id, node_id));
                 if started {
+                    for &(cid, sub, idx) in &self.corner_nodes {
+                        if cid == id
+                            && let Some(s) = nodes.subs.get_mut(sub)
+                            && let Some(nd) = s.nodes.get_mut(idx)
+                        {
+                            nd.smooth = false;
+                        }
+                    }
                     let held = nodes.node(node_id).and_then(|n| match pick {
                         Pick::Anchor(_) => Some(n.pos),
                         Pick::Handle(_, HandleSide::In) => n.hin,

@@ -758,7 +758,7 @@ mod tests {
         let c = mk(&mut ed, 20.0, green);
         let _d = mk(&mut ed, 30.0, None);
         let _e = mk(&mut ed, 40.0, Some(Rgba::BLACK));
-        let img = ImageData { encoded: Vec::new(), width_px: 1, height_px: 1, rect: [50.0, 0.0, 55.0, 5.0] };
+        let img = ImageData { encoded: SharedBytes::default(), width_px: 1, height_px: 1, rect: [50.0, 0.0, 55.0, 5.0] };
         let pic = ed.add(Object::image("pic", l, img));
         ed.selection.clear();
         assert_eq!(ed.group_by_color(), Ok(2));

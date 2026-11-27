@@ -69,7 +69,7 @@ pub struct StudioImage {
     pub name: String,
     pub width_px: u32,
     pub height_px: u32,
-    pub png: Vec<u8>,
+    pub png: ss_doc::SharedBytes,
 }
 
 /// A shape whose fill is an image from the table.
@@ -720,7 +720,7 @@ fn parse_image_record(r: &[u8]) -> Option<StudioImage> {
     let png_len = len(read_u64(r, png_at.checked_sub(8)?)?, r.len())?;
     let png = r.get(png_at..png_at.checked_add(png_len)?)?;
     (ss_doc::image_size(png) == Some((width_px, height_px)) && !id.is_empty())
-        .then(|| StudioImage { id, name, width_px, height_px, png: png.to_vec() })
+        .then(|| StudioImage { id, name, width_px, height_px, png: ss_doc::SharedBytes::from(png) })
 }
 
 /// Scans a v4 `.studio` stream for embedded image blocks:
@@ -781,7 +781,7 @@ fn parse_v4_image_record(body: &[u8]) -> Option<StudioImage> {
     }
     let bytes = &body[img_start..img_end];
     (ss_doc::image_size(bytes) == Some((width_px, height_px)))
-        .then(|| StudioImage { id: id.clone(), name: id, width_px, height_px, png: bytes.to_vec() })
+        .then(|| StudioImage { id: id.clone(), name: id, width_px, height_px, png: ss_doc::SharedBytes::from(bytes) })
 }
 
 /// Links shapes to image-table entries. A reference is `0x05` (v5) or `0x03` (v4) followed by a

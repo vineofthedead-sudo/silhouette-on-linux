@@ -62,12 +62,54 @@ pub enum CutAction {
     Perforate,
 }
 
+/// Encoded raster bytes shared across shapes and undo snapshots so cloning a document is cheap.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SharedBytes(pub Arc<[u8]>);
+
+impl SharedBytes {
+    pub fn new(bytes: impl Into<Arc<[u8]>>) -> Self {
+        Self(bytes.into())
+    }
+}
+
+impl From<Vec<u8>> for SharedBytes {
+    fn from(v: Vec<u8>) -> Self {
+        Self(Arc::from(v))
+    }
+}
+
+impl From<&[u8]> for SharedBytes {
+    fn from(s: &[u8]) -> Self {
+        Self(Arc::from(s))
+    }
+}
+
+impl std::ops::Deref for SharedBytes {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl Serialize for SharedBytes {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&b64::encode(&self.0))
+    }
+}
+
+impl<'de> Deserialize<'de> for SharedBytes {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        b64::decode(&String::deserialize(d)?)
+            .map(Self::from)
+            .ok_or_else(|| serde::de::Error::custom("bad base64"))
+    }
+}
+
 /// A tiled raster pattern fill (imported from `.studio` / `.studio3` pattern fills).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PatternFill {
     pub id: String,
-    #[serde(with = "bytes_b64")]
-    pub encoded: Vec<u8>,
+    pub encoded: SharedBytes,
     pub width_px: u32,
     pub height_px: u32,
     pub tile_width_mm: f64,
@@ -179,8 +221,7 @@ impl Default for TextData {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ImageData {
     /// Encoded PNG/JPEG bytes.
-    #[serde(with = "bytes_b64")]
-    pub encoded: Vec<u8>,
+    pub encoded: SharedBytes,
     pub width_px: u32,
     pub height_px: u32,
     /// Placement rectangle in local coordinates (mm).
@@ -189,13 +230,15 @@ pub struct ImageData {
 
 impl ImageData {
     /// Wraps PNG bytes, reading the pixel size from the IHDR chunk.
-    pub fn from_png(encoded: Vec<u8>, rect: Rect) -> Option<Self> {
+    pub fn from_png(encoded: impl Into<SharedBytes>, rect: Rect) -> Option<Self> {
+        let encoded = encoded.into();
         let (width_px, height_px) = png_size(&encoded)?;
         Some(Self { encoded, width_px, height_px, rect: [rect.x0, rect.y0, rect.x1, rect.y1] })
     }
 
     /// Wraps PNG or JPEG bytes, reading the pixel size from the image header.
-    pub fn from_encoded(encoded: Vec<u8>, rect: Rect) -> Option<Self> {
+    pub fn from_encoded(encoded: impl Into<SharedBytes>, rect: Rect) -> Option<Self> {
+        let encoded = encoded.into();
         let (width_px, height_px) = image_size(&encoded)?;
         Some(Self { encoded, width_px, height_px, rect: [rect.x0, rect.y0, rect.x1, rect.y1] })
     }
@@ -300,17 +343,6 @@ pub mod b64 {
     }
 }
 
-mod bytes_b64 {
-    use serde::{Deserialize, Deserializer, Serializer};
-
-    pub fn serialize<S: Serializer>(b: &[u8], s: S) -> Result<S::Ok, S::Error> {
-        s.serialize_str(&super::b64::encode(b))
-    }
-
-    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<u8>, D::Error> {
-        super::b64::decode(&String::deserialize(d)?).ok_or_else(|| serde::de::Error::custom("bad base64"))
-    }
-}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ObjectKind {
     Path { path: SharedPath, fill_rule: FillRule },

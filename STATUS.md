@@ -29,7 +29,7 @@ mode, and double-clicking again returns to Select.
 | Tool | Key | State |
 |---|---|---|
 | Select | V | Working: pick, marquee, move, scale, rotate |
-| Edit Points | A | Working: double-click path to enter/exit; drag anchor nodes and cubic Bézier handles live (smooth handles stay collinear, corner handles move independently); click segment to insert point; `Delete`/`Backspace` or double-click point to remove |
+| Edit Points | A | Working: double-click path to enter/exit; drag anchor nodes and cubic Bézier handles live; click segment to insert point; `Delete`/`Backspace` or double-click point to remove; `Break Path`, `Corner`/`Smooth` toggle, `Make Flat`/`Make Curve`, and `Simplify` (with tolerance) in Tool Options and context menu |
 | Line, Rectangle, Ellipse | L, R, E | Working: Shift constrains angle/square/circle |
 | Polyline | P | Working: successive clicks, double-click or Enter to commit |
 | Freehand | F | Working: continuous drag with curve fitting and auto-close |
@@ -47,41 +47,38 @@ The right dock is a set of collapsible panels: Tool Options (contextual for Edit
   custom width/height/border fields, Portrait / Landscape orientation toggles,
   cut border display, grid visibility and snap controls, Print & Cut registration
   marks (inset, length, thickness, square) and background image controls.
-- **Send (mocked)**: 3-step wizard workflow (Material (1) → Action (2) → Send (3)):
+- **Send (Virtual Cutter, Tool Path Preview & `.gpgl` Export)**: 3-step wizard workflow (Material (1) → Action (2) → Send (3)) wired to `ss_gpgl::JobSettings` and `ss_gpgl::encode_stages`:
   - **Material (1)**: Material type dropdown (Cardstock default), user-defined
     material creation ("Add new material type"), and forward navigation.
   - **Action (2)**: Simple, Line Color, Fill Color, and Layer tabs. Simple controls
-    cut styles (No Cut, Cut, Cut Edge). Line, Fill, and Layer display action tables
-    with On/Off toggles, color swatches, action dropdowns (Cut, Cut Edge, Sketch, No Cut),
-    and Tool 1 / Tool 2 holder assignments. Includes Cameo condition limits from
-    `condition.csv` (force 2–33, speed 1–10, passes 1–2, blade depth 0.1–0.9),
-    Line Segment Overcut toggle, test cut button (disabled), and restore defaults.
-  - **Send (3)**: Setup instructions, registration marks status block with manual
-    registration button, and step guidance.
-  - **Send to (Output controls)**: Machine checklist (CAMEO 2 - A, B, C, D),
-    settings summary, Tool 1 (Blade) / Tool 2 (Pen) holder selection, and a large
-    mock Send button. All device communication, scanning and USB access remain
-    strictly disabled.
-
-The earlier working sender (`send.rs`: virtual cutter, GPGL file, USB, tool
-path preview) is kept in the source but is not shown in the GUI. Use
-`ss-cli send` for virtual-cutter and file jobs until it is wired back in.
+    cut styles (No Cut, Cut, Cut Edge, Sketch). Line, Fill, and Layer display ordered
+    action tables with row reordering (`▲`/`▼`), On/Off toggles, color swatches,
+    action dropdowns (Cut, Cut Edge, Sketch, No Cut), Tool 1 / Tool 2 holder
+    assignments, and right-click pause insertion between stages (`H`). Includes
+    Cameo condition limits from `condition.csv` (force 2–33, speed 1–10, passes
+    1–2, blade depth 0.1–0.9 emitted as `TC`), Line Segment Overcut toggle, and
+    restore defaults.
+  - **Send (3)**: Setup instructions, Print & Cut registration marks toggle and
+    alignment (`Auto Search` / `Manual`), and Send action.
+  - **Send to (Output controls)**: Reconnected non-hardware backends for **Virtual
+    Cutter** simulation, live **Tool Path Preview** overlay on the canvas (aligned
+    to registration marks when enabled), and **Export `.gpgl` File…**. Live USB
+    device scanning and cutting remain disabled behind a safe mock toggle until
+    physical hardware testing.
 
 ### Remaining items
 
-- Edit Points (advanced): break path, explicit corner/smooth toggle, make flat/curved, and simplify (node/handle dragging, insertion, and deletion are implemented).
-- Send: connect the Line and Fill groups and per-group conditions to
-  `ss_gpgl::JobSettings` (per-pass tool settings, order and pauses), and pass
-  blade depth to cutters that support it.
+- USB hardware validation: live USB transport and Print & Cut optical mark
+  search remain untested on physical hardware (use `ss-cli send` or `ss-device`
+  when a cutter is attached).
 
 ## Tests
 
-- `cargo test --workspace --exclude ss-device -- --skip user_fixtures_parse`:
-  126 passed, 0 failed, 1 ignored (a timing benchmark). `ss-device` was left
-  out on purpose during the UI work (one of its tests lists USB devices).
-  `user_fixtures_parse` now reaches about 6.6 GB of memory on the full
-  fixture folder and was killed by `earlyoom` on a machine that was low on
-  memory; it needs a memory fix or a smaller corpus.
+- `cargo test --workspace --exclude ss-device`:
+  all workspace tests including `user_fixtures_parse` (178 files, 79,452 shapes)
+  pass; `SharedBytes` (`Arc<[u8]>`) sharing reduced `user_fixtures_parse` peak RSS
+  from ~6.6 GB to ~655 MB. `ss-device` was excluded during UI work so no live USB
+  enumeration runs.
 - `cargo clippy --workspace --all-targets`: no warnings.
 - Real-file tests read the stock files from `SS_STOCK_DIR` and the extra
   fixtures from `SS_FIXTURES_DIR`; they skip themselves when the folders are

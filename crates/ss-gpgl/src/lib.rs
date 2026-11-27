@@ -15,8 +15,8 @@ pub mod reply;
 pub mod sim;
 
 pub use job::{
-    EncodeError, EndAction, Job, JobSettings, JobStats, OffMedia, Perforation, Registration, Tool, ToolSettings, document_paths,
-    encode,
+    EncodeError, EndAction, Job, JobSettings, JobStage, JobStats, OffMedia, Perforation, Registration, Tool, ToolSettings,
+    cut_edge_paths, document_paths, encode, encode_stages,
 };
 pub use reply::{Status, parse_firmware, parse_registration, parse_status};
 pub use sim::{SimRegistration, Simulation, simulate};

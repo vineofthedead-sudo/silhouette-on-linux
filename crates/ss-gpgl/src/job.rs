@@ -27,14 +27,16 @@ pub struct ToolSettings {
     pub blade_offset: u32,
     /// Extra cut past the start point of closed paths, in mm.
     pub overcut_mm: f64,
-    /// Carriage index on dual-carriage models. Adds `J<n>` and a tool suffix to `!`, `FX` and `FC`
-    /// (*public*, unverified on hardware).
+    /// Carriage index on dual-carriage models. Adds `J<n>` and a tool suffix to `!`, `FX`, `FC`
+    /// and `TC` (*public*, unverified on hardware).
     pub tool_holder: Option<u8>,
+    /// AutoBlade depth setting (`0..=10`), emitted as `TC<n>` (*public*, unverified on hardware).
+    pub blade_depth: Option<u32>,
 }
 
 impl ToolSettings {
     pub fn blade() -> Self {
-        Self { tool: Tool::Blade, force: 10, speed: 5, passes: 1, blade_offset: 18, overcut_mm: 0.0, tool_holder: None }
+        Self { tool: Tool::Blade, force: 10, speed: 5, passes: 1, blade_offset: 18, overcut_mm: 0.0, tool_holder: None, blade_depth: None }
     }
 
     pub fn pen() -> Self {
@@ -202,31 +204,44 @@ fn yx(p: Point) -> (i64, i64) {
     (to_units(p.y), to_units(p.x))
 }
 
+fn validate_tool(t: &ToolSettings) -> Result<(), EncodeError> {
+    if !(1..=33).contains(&t.force) {
+        return Err(EncodeError::InvalidSetting("force must be 1..=33"));
+    }
+    if !(1..=10).contains(&t.speed) {
+        return Err(EncodeError::InvalidSetting("speed must be 1..=10"));
+    }
+    if t.passes == 0 {
+        return Err(EncodeError::InvalidSetting("passes must be at least 1"));
+    }
+    if !(t.overcut_mm.is_finite() && t.overcut_mm >= 0.0) {
+        return Err(EncodeError::InvalidSetting("overcut must not be negative"));
+    }
+    if t.blade_depth.is_some_and(|d| d > 10) {
+        return Err(EncodeError::InvalidSetting("blade depth must be 0..=10"));
+    }
+    Ok(())
+}
+
+fn validate_perforation(p: Option<Perforation>) -> Result<(), EncodeError> {
+    if let Some(p) = p
+        && !(p.cut_mm > 0.0 && p.gap_mm > 0.0)
+    {
+        return Err(EncodeError::InvalidSetting("perforation lengths must be positive"));
+    }
+    Ok(())
+}
+
 fn validate(s: &JobSettings) -> Result<(), EncodeError> {
     let (w, h) = s.media_mm;
     if !(w.is_finite() && h.is_finite() && w > 0.0 && h > 0.0) {
         return Err(EncodeError::InvalidSetting("media size"));
     }
-    if !(1..=33).contains(&s.tool.force) {
-        return Err(EncodeError::InvalidSetting("force must be 1..=33"));
-    }
-    if !(1..=10).contains(&s.tool.speed) {
-        return Err(EncodeError::InvalidSetting("speed must be 1..=10"));
-    }
-    if s.tool.passes == 0 {
-        return Err(EncodeError::InvalidSetting("passes must be at least 1"));
-    }
+    validate_tool(&s.tool)?;
     if !(s.tolerance_mm.is_finite() && s.tolerance_mm > 0.0) {
         return Err(EncodeError::InvalidSetting("tolerance must be positive"));
     }
-    if !(s.tool.overcut_mm.is_finite() && s.tool.overcut_mm >= 0.0) {
-        return Err(EncodeError::InvalidSetting("overcut must not be negative"));
-    }
-    if let Some(p) = s.perforation
-        && !(p.cut_mm > 0.0 && p.gap_mm > 0.0)
-    {
-        return Err(EncodeError::InvalidSetting("perforation lengths must be positive"));
-    }
+    validate_perforation(s.perforation)?;
     if let Some(r) = s.registration {
         let vals = [r.origin_mm.0, r.origin_mm.1, r.size_mm.0, r.size_mm.1, r.mark_length_mm, r.mark_thickness_mm];
         if !vals.iter().all(|v| v.is_finite()) || r.origin_mm.0 < 0.0 || r.origin_mm.1 < 0.0 {
@@ -378,14 +393,17 @@ fn polyline_points(pl: &Polyline, overcut: f64) -> Vec<Point> {
     pts
 }
 
-/// Encodes `paths` (page millimetres, y down, origin at the media's top-left corner).
-///
-/// With [`JobSettings::registration`], geometry must lie inside the marks (the off-media policy
-/// applies to the mark area) and is written relative to the top-left mark.
-pub fn encode(paths: &[BezPath], s: &JobSettings) -> Result<Job, EncodeError> {
-    validate(s)?;
-    let media = Rect::new(0.0, 0.0, s.media_mm.0, s.media_mm.1);
-    let area = s.registration.map_or(media, |r| r.area());
+/// One ordered stage in a multi-group job (e.g. a Line Color, Fill Color, or Layer row).
+#[derive(Debug, Clone, PartialEq)]
+pub struct JobStage {
+    pub paths: Vec<BezPath>,
+    pub tool: ToolSettings,
+    pub perforation: Option<Perforation>,
+    /// Pause after this stage by returning the carriage home before the next stage.
+    pub pause_after: bool,
+}
+
+fn prepare_lines(paths: &[BezPath], s: &JobSettings, area: Rect, media: Rect) -> Result<Vec<Polyline>, EncodeError> {
     let out_of_bounds = |count: usize| match s.registration {
         Some(_) => EncodeError::OutsideRegistration { count },
         None => EncodeError::OutOfBounds { count, w: media.x1, h: media.y1 },
@@ -416,12 +434,29 @@ pub fn encode(paths: &[BezPath], s: &JobSettings) -> Result<Job, EncodeError> {
             l.points.iter_mut().for_each(|p| *p += shift);
         }
     }
+    Ok(lines)
+}
 
-    let mut w = Writer { buf: Vec::new(), commands: 0 };
-    let t = &s.tool;
+fn emit_tool_settings(w: &mut Writer, t: &ToolSettings) {
     let suffix = t.tool_holder.map(|n| format!(",{n}")).unwrap_or_default();
-    let (mh, mw) = yx(Point::new(media.x1, media.y1));
     if let Some(n) = t.tool_holder {
+        w.cmd(&format!("J{n}"));
+    }
+    let offset = if t.tool == Tool::Pen { 0 } else { t.blade_offset };
+    match t.tool_holder {
+        Some(n) => w.cmd(&format!("FC{offset},1,{n}")),
+        None => w.cmd(&format!("FC{offset}")),
+    }
+    if let Some(d) = t.blade_depth {
+        w.cmd(&format!("TC{d}{suffix}"));
+    }
+    w.cmd(&format!("FX{}{suffix}", t.force));
+    w.cmd(&format!("!{}{suffix}", t.speed));
+}
+
+fn emit_header(w: &mut Writer, media: Rect, s: &JobSettings, initial_tool: &ToolSettings) -> Option<usize> {
+    let (mh, mw) = yx(Point::new(media.x1, media.y1));
+    if let Some(n) = initial_tool.tool_holder {
         w.cmd(&format!("J{n}"));
     }
     w.cmd("FN0");
@@ -430,14 +465,18 @@ pub fn encode(paths: &[BezPath], s: &JobSettings) -> Result<Job, EncodeError> {
     w.cmd("\\0,0");
     w.cmd(&format!("Z{mh},{mw}"));
     w.cmd("&100,100,100");
-    let offset = if t.tool == Tool::Pen { 0 } else { t.blade_offset };
-    match t.tool_holder {
+    let offset = if initial_tool.tool == Tool::Pen { 0 } else { initial_tool.blade_offset };
+    match initial_tool.tool_holder {
         Some(n) => w.cmd(&format!("FC{offset},1,{n}")),
         None => w.cmd(&format!("FC{offset}")),
     }
     w.cmd(&format!("FY{}", u8::from(s.track_enhancing)));
-    w.cmd(&format!("FX{}{suffix}", t.force));
-    w.cmd(&format!("!{}{suffix}", t.speed));
+    let suffix = initial_tool.tool_holder.map(|n| format!(",{n}")).unwrap_or_default();
+    if let Some(d) = initial_tool.blade_depth {
+        w.cmd(&format!("TC{d}{suffix}"));
+    }
+    w.cmd(&format!("FX{}{suffix}", initial_tool.force));
+    w.cmd(&format!("!{}{suffix}", initial_tool.speed));
     let mut registration_end = None;
     if let Some(r) = s.registration {
         w.cmd("TB50,0");
@@ -457,10 +496,11 @@ pub fn encode(paths: &[BezPath], s: &JobSettings) -> Result<Job, EncodeError> {
         }
         registration_end = Some(w.buf.len());
     }
+    registration_end
+}
 
-    let mut stats = JobStats::default();
-    let mut pos = Point::ZERO;
-    let mut emit = |w: &mut Writer, pts: &[Point], stats: &mut JobStats| {
+fn emit_lines(w: &mut Writer, lines: &[Polyline], t: &ToolSettings, perf: Option<Perforation>, pos: &mut Point, stats: &mut JobStats) {
+    let mut emit = |w: &mut Writer, pts: &[Point]| {
         let Some(&first) = pts.first() else { return };
         stats.travel_mm += pos.distance(first);
         let mut last = yx(first);
@@ -474,30 +514,96 @@ pub fn encode(paths: &[BezPath], s: &JobSettings) -> Result<Job, EncodeError> {
             }
         }
         stats.strokes += 1;
-        pos = *pts.last().unwrap_or(&first);
+        *pos = *pts.last().unwrap_or(&first);
     };
-    for line in &lines {
+    for line in lines {
         let pts = polyline_points(line, t.overcut_mm);
         for _ in 0..t.passes {
-            match s.perforation {
+            match perf {
                 Some(p) => {
                     for dash in dashes(&pts, p.cut_mm, p.gap_mm) {
-                        emit(&mut w, &dash, &mut stats);
+                        emit(w, &dash);
                     }
                 }
-                None => emit(&mut w, &pts, &mut stats),
+                None => emit(w, &pts),
             }
         }
     }
+}
 
+fn emit_footer(w: &mut Writer, s: &JobSettings) {
     w.cmd("&1,1,1");
     match s.end {
         EndAction::Home => w.cmd("H"),
         EndAction::FeedOut { mm } => w.cmd(&format!("M{},0", to_units(mm.max(0.0)))),
         EndAction::Stay => {}
     }
+}
+
+/// Encodes `paths` (page millimetres, y down, origin at the media's top-left corner).
+///
+/// With [`JobSettings::registration`], geometry must lie inside the marks (the off-media policy
+/// applies to the mark area) and is written relative to the top-left mark.
+pub fn encode(paths: &[BezPath], s: &JobSettings) -> Result<Job, EncodeError> {
+    validate(s)?;
+    let media = Rect::new(0.0, 0.0, s.media_mm.0, s.media_mm.1);
+    let area = s.registration.map_or(media, |r| r.area());
+    let lines = prepare_lines(paths, s, area, media)?;
+    let mut w = Writer { buf: Vec::new(), commands: 0 };
+    let registration_end = emit_header(&mut w, media, s, &s.tool);
+    let mut stats = JobStats::default();
+    let mut pos = Point::ZERO;
+    emit_lines(&mut w, &lines, &s.tool, s.perforation, &mut pos, &mut stats);
+    emit_footer(&mut w, s);
     stats.commands = w.commands;
     Ok(Job { bytes: w.buf, stats, registration_end })
+}
+
+/// Encodes multiple ordered [`JobStage`]s into a single GPGL job, switching tool settings (and
+/// optionally pausing at home) between stages.
+pub fn encode_stages(stages: &[JobStage], s: &JobSettings) -> Result<Job, EncodeError> {
+    validate(s)?;
+    for st in stages {
+        validate_tool(&st.tool)?;
+        validate_perforation(st.perforation)?;
+    }
+    let media = Rect::new(0.0, 0.0, s.media_mm.0, s.media_mm.1);
+    let area = s.registration.map_or(media, |r| r.area());
+    let mut prepared = Vec::with_capacity(stages.len());
+    for st in stages {
+        let lines = prepare_lines(&st.paths, s, area, media)?;
+        if !lines.is_empty() {
+            prepared.push((st, lines));
+        }
+    }
+    let initial_tool = prepared.first().map_or(&s.tool, |(st, _)| &st.tool);
+    let mut w = Writer { buf: Vec::new(), commands: 0 };
+    let registration_end = emit_header(&mut w, media, s, initial_tool);
+    let mut stats = JobStats::default();
+    let mut pos = Point::ZERO;
+    for (idx, (st, lines)) in prepared.iter().enumerate() {
+        if idx > 0 {
+            emit_tool_settings(&mut w, &st.tool);
+        }
+        emit_lines(&mut w, lines, &st.tool, st.perforation, &mut pos, &mut stats);
+        if st.pause_after && idx + 1 < prepared.len() {
+            w.cmd("H");
+            pos = Point::ZERO;
+        }
+    }
+    emit_footer(&mut w, s);
+    stats.commands = w.commands;
+    Ok(Job { bytes: w.buf, stats, registration_end })
+}
+
+/// Welds `paths` and keeps only the outer boundaries (the Silhouette "Cut Edge" rule).
+pub fn cut_edge_paths(paths: &[BezPath]) -> Vec<BezPath> {
+    if paths.is_empty() {
+        return Vec::new();
+    }
+    let welded = ss_geom::boolean::weld(paths, FillRule::EvenOdd, ss_geom::DEFAULT_TOLERANCE);
+    let outer: Vec<_> = welded.into_iter().filter_map(|poly| poly.into_iter().next()).map(|c| vec![c]).collect();
+    if outer.is_empty() { Vec::new() } else { vec![ss_geom::boolean::polygons_to_path(&outer, None)] }
 }
 
 /// Outlines of the visible objects whose cut action is in `actions`, in page millimetres.
@@ -561,5 +667,58 @@ mod tests {
         let pl = Polyline { points: vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0), Point::new(10.0, 10.0)], closed: true };
         let pts = polyline_points(&pl, 3.0);
         assert_eq!(pts.last(), Some(&Point::new(3.0, 0.0)));
+    }
+
+    #[test]
+    fn multi_stage_job_switches_tool_settings_blade_depth_and_pauses() {
+        let mut p1 = BezPath::new();
+        p1.move_to((10.0, 10.0));
+        p1.line_to((30.0, 10.0));
+        let mut p2 = BezPath::new();
+        p2.move_to((10.0, 20.0));
+        p2.line_to((30.0, 20.0));
+
+        let stages = vec![
+            JobStage {
+                paths: vec![p1],
+                tool: ToolSettings {
+                    tool: Tool::Blade,
+                    force: 22,
+                    speed: 4,
+                    passes: 2,
+                    blade_offset: 18,
+                    overcut_mm: 0.0,
+                    tool_holder: Some(1),
+                    blade_depth: Some(5),
+                },
+                perforation: None,
+                pause_after: true,
+            },
+            JobStage {
+                paths: vec![p2],
+                tool: ToolSettings {
+                    tool: Tool::Pen,
+                    force: 8,
+                    speed: 7,
+                    passes: 1,
+                    blade_offset: 0,
+                    overcut_mm: 0.0,
+                    tool_holder: Some(2),
+                    blade_depth: None,
+                },
+                perforation: None,
+                pause_after: false,
+            },
+        ];
+        let job = encode_stages(&stages, &JobSettings::default()).unwrap();
+        let sim = crate::simulate(&job.bytes);
+        assert!(sim.errors.is_empty());
+        assert!(sim.unknown.is_empty());
+        assert_eq!(sim.strokes.len(), 3); // 2 passes for stage 1 + 1 pass for stage 2
+        assert_eq!(sim.force, Some(8));
+        assert_eq!(sim.speed, Some(7));
+        assert_eq!(sim.blade_depth, Some(5));
+        assert_eq!(sim.tool_holder, Some(2));
+        assert_eq!(sim.homes, 2); // 1 pause between stages + 1 EndAction::Home
     }
 }

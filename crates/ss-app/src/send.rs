@@ -147,6 +147,7 @@ impl SendPanel {
             blade_offset: if pen { 0 } else { self.blade_offset },
             overcut_mm: if pen { 0.0 } else { self.overcut_mm },
             tool_holder: None,
+            blade_depth: None,
         };
         JobSettings {
             media_mm: (page.width_mm, page.height_mm),
