@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use egui::{Key, KeyboardShortcut, Modifiers, ViewportCommand};
 use ss_config::{AppPaths, Settings, Theme, Units};
-use ss_doc::{Align, CutAction, Document, Editor, ImageData, LayerId, Object, ObjectId, ObjectKind, Page, TextData};
+use ss_doc::{Align, CutAction, Document, Editor, ImageData, LayerId, Object, ObjectId, ObjectKind, Page, TextData, ToolState};
 use ss_geom::{Affine, Point, Vec2};
 use ss_geom::offset::Join;
 
@@ -91,6 +91,7 @@ pub struct StudioApp {
     editor: Editor,
     file: Option<PathBuf>,
     canvas: Canvas,
+    tool_state: ToolState,
     send: MockSendPanel,
     active_layer: LayerId,
     status: String,
@@ -164,6 +165,7 @@ impl StudioApp {
             settings,
             file: None,
             canvas: Canvas::default(),
+            tool_state: ToolState::default(),
             send: MockSendPanel::default(),
             status,
             clipboard: Vec::new(),
@@ -207,6 +209,7 @@ impl StudioApp {
         self.editor = Editor::new(doc);
         self.editor.tolerance = self.settings.curve_tolerance_mm;
         self.file = file;
+        self.tool_state.cancel();
         self.canvas.cancel_interaction();
         self.canvas.overlay.clear();
         let page = self.editor.doc.page.rect();
@@ -624,7 +627,11 @@ impl StudioApp {
                 }
             }
             Action::SetTool(t) => {
-                self.canvas.set_tool(t);
+                self.tool_state.set_active(t);
+                self.canvas.cancel_interaction();
+                if t == Tool::EditPoints {
+                    self.status = "Edit Points requires one ungrouped path; double-click a path or select it with this tool".into();
+                }
             }
             Action::About => self.about = true,
         }
@@ -959,7 +966,7 @@ impl StudioApp {
                 ui.add(egui::Label::new(&self.status).truncate());
             },
             |ui| {
-                ui.weak(self.canvas.tool().hint());
+                ui.weak(self.tool_state.active().hint());
             },
         );
     }
@@ -1009,7 +1016,7 @@ impl eframe::App for StudioApp {
         egui::Panel::left("tools").resizable(false).exact_size(96.0).show(ui, |ui| {
             ui.add_space(4.0);
             for t in Tool::ALL {
-                let r = ui.add_sized([84.0, 26.0], egui::Button::selectable(self.canvas.tool() == t, t.label()));
+                let r = ui.add_sized([84.0, 26.0], egui::Button::selectable(self.tool_state.active() == t, t.label()));
                 if r.on_hover_text(format!("{} ({:?})", t.hint(), tool_key(t))).clicked() {
                     actions.push(Action::SetTool(t));
                 }
@@ -1040,7 +1047,7 @@ impl eframe::App for StudioApp {
             });
         });
         egui::CentralPanel::no_frame().show(ui, |ui| {
-            self.canvas.show(ui, &mut self.editor, &self.settings, self.active_layer, &mut actions, &mut self.status);
+            self.canvas.show(ui, &mut self.editor, &mut self.tool_state, &self.settings, self.active_layer, &mut actions, &mut self.status);
         });
 
         self.dialogs(&ctx, &mut actions);

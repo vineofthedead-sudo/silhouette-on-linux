@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use egui::{Color32, Key, PointerButton, Pos2, Sense, Shape, Stroke, StrokeKind, pos2, vec2};
 use ss_config::Settings;
-use ss_doc::{CutAction, Editor, ImageData, LayerId, Object, ObjectId, ObjectKind, RegMarks};
+use ss_doc::{CutAction, Editor, ImageData, LayerId, Object, ObjectId, ObjectKind, RegMarks, ToolGesture, ToolState};
 use ss_geom::fit::{FitOptions, fit_contour};
 use ss_geom::flatten::{Polyline, flatten};
 use ss_geom::{Affine, BezPath, Point, Rect, Shape as _, Vec2};
@@ -20,6 +20,7 @@ const RENDER_TOLERANCE: f64 = 0.02;
 const HANDLE_HALF: f32 = 4.0;
 const ROTATE_OFFSET: f32 = 22.0;
 const PICK_PX: f64 = 5.0;
+const ERASER_RADIUS_MM: f64 = 2.5;
 const MIN_ZOOM: f32 = 0.02;
 const MAX_ZOOM: f32 = 400.0;
 /// Points per mm at 100 % (96 dpi).
@@ -107,13 +108,10 @@ enum Drag {
     Rotate { center: Point, start_angle: f64 },
     Create { start: Point },
     Freehand,
-    Knife { start: Point },
-    Eraser,
 }
 
 pub struct Canvas {
     pub view: View,
-    tool: Tool,
     pub mat: CuttingMat,
     pending_fit: Option<Rect>,
     last_rect: egui::Rect,
@@ -134,7 +132,6 @@ impl Default for Canvas {
     fn default() -> Self {
         Self {
             view: View::default(),
-            tool: Tool::Select,
             mat: CuttingMat::default(),
             pending_fit: None,
             last_rect: egui::Rect::NOTHING,
@@ -246,17 +243,6 @@ pub fn color32(c: ss_doc::Rgba) -> Color32 {
 }
 
 impl Canvas {
-    pub fn tool(&self) -> Tool {
-        self.tool
-    }
-
-    pub fn set_tool(&mut self, tool: Tool) {
-        if self.tool != tool {
-            self.cancel_interaction();
-            self.tool = tool;
-        }
-    }
-
     pub fn fit_to(&mut self, r: Rect) {
         self.pending_fit = Some(r);
     }
@@ -411,11 +397,13 @@ impl Canvas {
         &mut self,
         ui: &mut egui::Ui,
         editor: &mut Editor,
+        tool_state: &mut ToolState,
         settings: &Settings,
         layer: LayerId,
         actions: &mut Vec<Action>,
         status: &mut String,
     ) {
+        let tool = tool_state.active();
         let (resp, painter) = ui.allocate_painter(ui.available_size(), Sense::click_and_drag());
         let rect = resp.rect;
         self.last_rect = rect;
@@ -451,8 +439,9 @@ impl Canvas {
                     editor.selection.clear();
                 }
                 self.cancel_interaction();
+                tool_state.cancel();
             }
-            if enter && self.tool == Tool::Polyline {
+            if enter && tool == Tool::Polyline {
                 self.finish_polyline(editor, layer, false);
             }
         }
@@ -460,22 +449,63 @@ impl Canvas {
         if !panning && !(space && !typing) {
             let pointer_doc = resp.interact_pointer_pos().map(|p| self.view.to_doc(origin, p));
             let press_doc = press.map(|p| self.view.to_doc(origin, p));
-            match self.tool {
+            let mut completed = None;
+
+            if resp.drag_started_by(PointerButton::Primary)
+                && let Some(p) = press_doc
+            {
+                tool_state.press(p);
+            }
+            if resp.dragged_by(PointerButton::Primary)
+                && let Some(p) = pointer_doc
+            {
+                tool_state.drag(p);
+            }
+            if resp.drag_stopped_by(PointerButton::Primary) {
+                if let Some(p) = pointer_doc.or(press_doc) {
+                    completed = tool_state.release(p);
+                }
+            } else if resp.clicked()
+                && let Some(p) = pointer_doc.or(press_doc)
+            {
+                tool_state.press(p);
+                completed = tool_state.release(p);
+            }
+
+            if resp.double_clicked()
+                && let Some(p) = pointer_doc
+            {
+                if tool == Tool::EditPoints {
+                    actions.push(Action::SetTool(Tool::Select));
+                } else if let Some(id) = self.pick(editor, p, PICK_PX / f64::from(self.view.zoom))
+                    && matches!(editor.doc.find(id).map(|o| &o.kind), Some(ObjectKind::Path { .. }))
+                {
+                    editor.select_only(id);
+                    actions.push(Action::SetTool(Tool::EditPoints));
+                }
+            }
+
+            match tool {
                 Tool::Select => self.select_tool(&resp, editor, origin, mods, press, press_doc, pointer_doc, settings, status),
                 Tool::EditPoints => {
                     if (resp.clicked() || resp.drag_started_by(PointerButton::Primary))
                         && let Some(p) = press_doc.or(pointer_doc)
                     {
-                        if let Some(id) = self.pick(editor, p, PICK_PX / f64::from(self.view.zoom)) {
-                            editor.select_only(id);
-                        } else {
-                            editor.selection.clear();
+                        let picked = self.pick(editor, p, PICK_PX / f64::from(self.view.zoom));
+                        match picked.filter(|id| matches!(editor.doc.find(*id).map(|o| &o.kind), Some(ObjectKind::Path { .. }))) {
+                            Some(id) => {
+                                editor.select_only(id);
+                                *status = "Edit Points: endpoint inspection only; point editing is not implemented".into();
+                            }
+                            None => {
+                                editor.selection.clear();
+                                *status = "Edit Points requires one ungrouped path; double-click a path or select it with this tool".into();
+                            }
                         }
-                        *status = "Edit Points: endpoint inspection only; point editing is not implemented".into();
                     }
                 }
                 Tool::Rectangle | Tool::Ellipse | Tool::Line => {
-                    self.shape_tool(&resp, editor, mods, press_doc, pointer_doc, settings, layer);
+                    self.shape_tool(tool, &resp, editor, mods, press_doc, pointer_doc, settings, layer);
                 }
                 Tool::Polyline => self.polyline_tool(&resp, editor, origin, pointer_doc, settings, layer),
                 Tool::Freehand => self.freehand_tool(&resp, editor, origin, press_doc, pointer_doc, layer),
@@ -487,36 +517,41 @@ impl Canvas {
                         actions.push(Action::NewText(p.x, p.y));
                     }
                 }
-                Tool::Knife | Tool::Eraser => self.preview_tool(&resp, press_doc, pointer_doc, status),
+                Tool::Knife | Tool::Eraser => Self::preview_tool(tool, &resp, completed.as_ref(), editor, status),
             }
         }
 
-        self.paint(&painter, rect, origin, editor, settings);
+        self.paint(&painter, rect, origin, editor, settings, tool, tool_state.gesture());
         resp.context_menu(|ui| context_menu(ui, editor, actions));
     }
 
-    fn preview_tool(&mut self, resp: &egui::Response, press: Option<Point>, pointer: Option<Point>, status: &mut String) {
-        if resp.drag_started_by(PointerButton::Primary)
-            && let Some(p) = press
-        {
-            self.current = p;
-            self.points = vec![p];
-            self.drag = if self.tool == Tool::Knife { Drag::Knife { start: p } } else { Drag::Eraser };
+    fn preview_tool(
+        tool: Tool,
+        resp: &egui::Response,
+        completed: Option<&ToolGesture>,
+        editor: &Editor,
+        status: &mut String,
+    ) {
+        if !(resp.drag_stopped_by(PointerButton::Primary) || resp.clicked()) {
+            return;
         }
-        if resp.dragged_by(PointerButton::Primary)
-            && let Some(p) = pointer
-        {
-            self.current = p;
-            if matches!(self.drag, Drag::Eraser)
-                && self.points.last().is_none_or(|last| last.distance(p) * f64::from(self.view.zoom) >= 2.0)
-            {
-                self.points.push(p);
-            }
-        }
-        if resp.drag_stopped_by(PointerButton::Primary) || resp.clicked() {
-            *status = format!("{} preview only: geometry is not implemented; document unchanged", self.tool.label());
-            self.cancel_interaction();
-        }
+        let Some(gesture) = completed else {
+            *status = format!("{} drag ended without coordinates; document unchanged", tool.label());
+            return;
+        };
+        let subject: Vec<BezPath> = editor.selected().into_iter().flat_map(|object| object.page_paths()).collect();
+        let result = match tool {
+            Tool::Knife => ss_geom::tools::knife_preview(gesture.start, gesture.current)
+                .map(|cut| ss_geom::tools::split_with_knife(&subject, &cut, ss_geom::DEFAULT_TOLERANCE)),
+            Tool::Eraser => ss_geom::tools::eraser_preview(&gesture.points)
+                .map(|stroke| ss_geom::tools::subtract_with_eraser(&subject, &stroke, ERASER_RADIUS_MM, ss_geom::DEFAULT_TOLERANCE)),
+            _ => return,
+        };
+        *status = match result {
+            Some(Err(error)) => format!("{} drag recorded ({} points): {error}", tool.label(), gesture.points.len()),
+            Some(Ok(_)) => format!("{} geometry returned, but editor commit is unavailable; document unchanged", tool.label()),
+            None => format!("{} needs a drag with distinct points; document unchanged", tool.label()),
+        };
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -655,6 +690,7 @@ impl Canvas {
     #[allow(clippy::too_many_arguments)]
     fn shape_tool(
         &mut self,
+        tool: Tool,
         resp: &egui::Response,
         editor: &mut Editor,
         mods: egui::Modifiers,
@@ -676,7 +712,7 @@ impl Canvas {
             let mut c = self.snap(cur, settings);
             if mods.shift {
                 let d = c - start;
-                c = if self.tool == Tool::Line {
+                c = if tool == Tool::Line {
                     let step = std::f64::consts::FRAC_PI_4;
                     let a = (d.y.atan2(d.x) / step).round() * step;
                     start + Vec2::new(a.cos(), a.sin()) * d.hypot()
@@ -691,15 +727,15 @@ impl Canvas {
             && let Drag::Create { start } = self.drag
         {
             self.drag = Drag::None;
-            if let Some((name, path)) = self.creation_path(start, self.current) {
+            if let Some((name, path)) = self.creation_path(tool, start, self.current) {
                 editor.add(Object::path(name, layer, path));
             }
         }
     }
 
-    fn creation_path(&self, a: Point, b: Point) -> Option<(&'static str, BezPath)> {
+    fn creation_path(&self, tool: Tool, a: Point, b: Point) -> Option<(&'static str, BezPath)> {
         let r = Rect::from_points(a, b);
-        match self.tool {
+        match tool {
             Tool::Rectangle if r.width() > 0.05 && r.height() > 0.05 => Some(("Rectangle", r.to_path(0.01))),
             Tool::Ellipse if r.width() > 0.05 && r.height() > 0.05 => {
                 Some(("Ellipse", ss_geom::kurbo::Ellipse::from_rect(r).to_path(0.001)))
@@ -808,7 +844,17 @@ impl Canvas {
         out
     }
 
-    fn paint(&self, painter: &egui::Painter, rect: egui::Rect, origin: Pos2, editor: &Editor, settings: &Settings) {
+    #[allow(clippy::too_many_arguments)]
+    fn paint(
+        &self,
+        painter: &egui::Painter,
+        rect: egui::Rect,
+        origin: Pos2,
+        editor: &Editor,
+        settings: &Settings,
+        tool: Tool,
+        gesture: Option<&ToolGesture>,
+    ) {
         let v = self.view;
         let dark = painter.ctx().global_style().visuals.dark_mode;
         painter.rect_filled(rect, 0.0, if dark { Color32::from_gray(38) } else { Color32::from_gray(200) });
@@ -945,8 +991,10 @@ impl Canvas {
         painter.extend(shapes);
 
         let sel_stroke = Stroke::new(1.0, SELECTION_COLOR);
-        if self.tool == Tool::EditPoints {
-            for o in editor.doc.visible_objects().filter(|o| editor.selection.contains(&o.id)) {
+        if tool == Tool::EditPoints && editor.selection.len() == 1 {
+            for o in editor.doc.visible_objects().filter(|o| {
+                editor.selection.contains(&o.id) && matches!(o.kind, ObjectKind::Path { .. })
+            }) {
                 for path in o.page_paths() {
                     for el in path.elements() {
                         let endpoint = match *el {
@@ -963,7 +1011,7 @@ impl Canvas {
                 }
             }
         }
-        if self.tool == Tool::Select
+        if tool == Tool::Select
             && let Some(b) = self.bounds_of(&editor.selection).map(|b| transform_rect(self.preview, b))
         {
             let corners = [(b.x0, b.y0), (b.x1, b.y0), (b.x1, b.y1), (b.x0, b.y1), (b.x0, b.y0)]
@@ -988,7 +1036,7 @@ impl Canvas {
                 painter.rect_stroke(r, 0.0, sel_stroke, StrokeKind::Inside);
             }
             Drag::Create { start } => {
-                if let Some((_, path)) = self.creation_path(start, self.current) {
+                if let Some((_, path)) = self.creation_path(tool, start, self.current) {
                     for l in flatten(&path, RENDER_TOLERANCE) {
                         let pts = self.screen_points(origin, &l.points, Affine::IDENTITY);
                         painter.add(if l.closed { Shape::closed_line(pts, sel_stroke) } else { Shape::line(pts, sel_stroke) });
@@ -998,16 +1046,37 @@ impl Canvas {
             Drag::Freehand => {
                 painter.add(Shape::line(self.screen_points(origin, &self.points, Affine::IDENTITY), sel_stroke));
             }
-            Drag::Knife { start } => {
-                painter.line_segment([v.to_screen(origin, start), v.to_screen(origin, self.current)], Stroke::new(2.0, Color32::RED));
-            }
-            Drag::Eraser => {
-                painter.add(Shape::line(self.screen_points(origin, &self.points, Affine::IDENTITY), Stroke::new(10.0, Color32::from_rgba_unmultiplied(230, 80, 80, 100))));
-                painter.circle_stroke(v.to_screen(origin, self.current), 5.0, Stroke::new(1.0, Color32::RED));
-            }
             _ => {}
         }
-        if self.tool == Tool::Polyline && !self.points.is_empty() {
+        if let Some(gesture) = gesture {
+            match tool {
+                Tool::Knife => {
+                    if ss_geom::tools::knife_preview(gesture.start, gesture.current).is_some() {
+                        painter.line_segment(
+                            [v.to_screen(origin, gesture.start), v.to_screen(origin, gesture.current)],
+                            Stroke::new(2.0, Color32::RED),
+                        );
+                    }
+                }
+                Tool::Eraser => {
+                    if let Some(stroke) = ss_geom::tools::eraser_preview(&gesture.points) {
+                        for line in flatten(&stroke, RENDER_TOLERANCE) {
+                            let points = self.screen_points(origin, &line.points, Affine::IDENTITY);
+                            if points.len() >= 2 {
+                                painter.add(Shape::line(points, Stroke::new(10.0, Color32::from_rgba_unmultiplied(230, 80, 80, 100))));
+                            }
+                        }
+                        painter.circle_stroke(
+                            v.to_screen(origin, gesture.current),
+                            ERASER_RADIUS_MM as f32 * v.zoom,
+                            Stroke::new(1.0, Color32::RED),
+                        );
+                    }
+                }
+                _ => {}
+            }
+        }
+        if tool == Tool::Polyline && !self.points.is_empty() {
             let mut pts = self.screen_points(origin, &self.points, Affine::IDENTITY);
             pts.push(v.to_screen(origin, self.current));
             painter.add(Shape::line(pts, sel_stroke));

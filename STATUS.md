@@ -20,33 +20,47 @@ tool rail, collapsible right dock and mocked Send panel.
 
 ## V5 UI and tool states
 
-The active tool lives in `ss_doc::Tool`. The canvas owns the current tool,
-cancels any unfinished drag or polyline when the tool changes, and sends each
-press, drag and release to that tool's handler.
+The active tool state is owned by the application session via `ss_doc::ToolState`,
+tracking `ToolGesture`s with full press, drag and release coordinates in document
+millimetres. Switching active tools cleanly cancels any unfinished interaction without
+affecting the document history. Double-clicking an ungrouped path enters Edit Points
+mode, and double-clicking again returns to Select.
 
 | Tool | Key | State |
 |---|---|---|
 | Select | V | Working: pick, marquee, move, scale, rotate |
-| Edit Points | A | **Inspection only**: selects a path and shows its end points; no point moving, adding, deleting, breaking, corner/smooth or simplify |
-| Line, Rectangle, Ellipse | L, R, E | Working |
-| Polyline | P | Working (kept from the earlier rail) |
-| Freehand | F | Working |
-| Text | T | Working |
-| Knife | K | **Preview only**: draws the cut line; the document is not changed |
-| Eraser | X | **Preview only**: draws the eraser stroke; the document is not changed |
+| Edit Points | A | **Inspection only**: double-click path to enter/exit; inspects endpoints; point moving, adding, deleting, breaking, corner/smooth and simplify queued for next phase |
+| Line, Rectangle, Ellipse | L, R, E | Working: Shift constrains angle/square/circle |
+| Polyline | P | Working: successive clicks, double-click or Enter to commit |
+| Freehand | F | Working: continuous drag with curve fitting and auto-close |
+| Text | T | Working: creates text dialog at click position |
+| Knife | K | **Preview & stub**: straight drag preview via `ss_geom::tools::knife_preview`; destructive splitting cleanly stubbed with `split_with_knife` (document unchanged) |
+| Eraser | X | **Preview & stub**: continuous drag preview via `ss_geom::tools::eraser_preview` with radius indicator; boolean subtraction cleanly stubbed with `subtract_with_eraser` (document unchanged) |
 
 The right dock is a set of collapsible panels: Page Setup (open), Send (open),
 Properties and Layers.
 
-- **Page Setup**: cutting mat choice (None, Cameo 12 × 12, Cameo 12 × 24,
-  Portrait 8 × 12; session-only display that does not change the media size),
-  media presets, size, cut border, grid, Print & Cut marks and background.
-- **Send (mocked)**: Simple, Line and Fill tabs. Simple chooses No Cut, Cut or
-  Cut Edge. Line and Fill list visible objects grouped by line or fill colour,
-  each with an on/off box. Material presets and limits come from the Cameo rows
-  of `SPEC_S/condition.csv`: force 2–33, speed 1–10, passes 1–2, blade depth
-  0.1–0.9. The settings are kept for the session only and the Send button is
-  disabled. The panel makes no USB or device calls.
+- **Page Setup**: cutting mat selection (None, Cameo 12 × 12, Cameo 12 × 24,
+  Portrait 8 × 12, Cameo Plus 15 × 15, Cameo Pro 24 × 24, Curio 8.5 × 6, Curio 8.5 × 12;
+  session-only display that does not alter media size), media size presets,
+  custom width/height/border fields, Portrait / Landscape orientation toggles,
+  cut border display, grid visibility and snap controls, Print & Cut registration
+  marks (inset, length, thickness, square) and background image controls.
+- **Send (mocked)**: 3-step wizard workflow (Material (1) → Action (2) → Send (3)):
+  - **Material (1)**: Material type dropdown (Cardstock default), user-defined
+    material creation ("Add new material type"), and forward navigation.
+  - **Action (2)**: Simple, Line Color, Fill Color, and Layer tabs. Simple controls
+    cut styles (No Cut, Cut, Cut Edge). Line, Fill, and Layer display action tables
+    with On/Off toggles, color swatches, action dropdowns (Cut, Cut Edge, Sketch, No Cut),
+    and Tool 1 / Tool 2 holder assignments. Includes Cameo condition limits from
+    `condition.csv` (force 2–33, speed 1–10, passes 1–2, blade depth 0.1–0.9),
+    Line Segment Overcut toggle, test cut button (disabled), and restore defaults.
+  - **Send (3)**: Setup instructions, registration marks status block with manual
+    registration button, and step guidance.
+  - **Send to (Output controls)**: Machine checklist (CAMEO 2 - A, B, C, D),
+    settings summary, Tool 1 (Blade) / Tool 2 (Pen) holder selection, and a large
+    mock Send button. All device communication, scanning and USB access remain
+    strictly disabled.
 
 The earlier working sender (`send.rs`: virtual cutter, GPGL file, USB, tool
 path preview) is kept in the source but is not shown in the GUI. Use
@@ -56,9 +70,10 @@ path preview) is kept in the source but is not shown in the GUI. Use
 
 - Eraser: buffer the stroke into a closed outline (offset of the polyline by the
   eraser radius) and subtract it from the paths it touches with
-  `ss_geom::boolean`, as one undo step.
+  `ss_geom::boolean`, as one undo step (cleanly stubbed in `ss_geom::tools::subtract_with_eraser`).
 - Knife: split closed and open paths along the knife line into separate
-  objects, closing the cut edges of filled shapes.
+  objects, closing the cut edges of filled shapes (cleanly stubbed in
+  `ss_geom::tools::split_with_knife`).
 - Edit Points: hit-test individual nodes and handles; move, add and delete
   points; break a path; corner/smooth; make flat or curved; simplify.
 - Send: connect the Line and Fill groups and per-group conditions to

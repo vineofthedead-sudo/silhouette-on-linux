@@ -1,0 +1,3395 @@
+Silhouette Software Manual
+User Manual
+
+
+
+
+MANUAL NO. SS-UM-151
+Table of Contents
+
+Software Usage Agreement ···················································· 6
+ Copyright ················································································································································································ 6
+
+ Disclaimer··············································································································································································· 6
+
+ Restrictions ············································································································································································ 6
+
+ Silhouette Cloud Usage ······················································································································································· 6
+
+ Silhouette Cloud Content Review ······································································································································ 7
+
+ Storage Reliability and File Backups ·································································································································· 7
+
+ Transmitting Library Data to the Silhouette Servers ····································································································· 7
+
+ Operating license ·································································································································································· 7
+
+ Distribution license······························································································································································· 7
+
+ Terms ······················································································································································································ 7
+
+ Rights and restrictions ························································································································································· 7
+
+ Acknowledgement ································································································································································ 8
+
+
+Precautions in this Document ················································· 9
+
+General Information ································································ 10
+ System Requirements ························································································································································ 10
+
+ Features Overview ······························································································································································ 10
+
+ Software File Formats ························································································································································ 10
+
+ Available Digital Content ···················································································································································· 11
+
+
+Install the software (Silhouette Studio®)······························ 12
+
+Software Overview ·································································· 13
+ Opening the Software ························································································································································· 13
+
+                                                                                            2
+  Software Sections ································································································································································ 15
+
+  Cutting/Drawing Area ························································································································································ 16
+
+  Opening Documents ··························································································································································· 17
+
+  Document Tabs ···································································································································································· 17
+
+  Document Sizes···································································································································································· 17
+
+  Cutting Orientation ····························································································································································· 18
+
+  Viewing and Zooming ························································································································································· 18
+
+  Preferences ··········································································································································································· 19
+
+
+Drawing/Editing Images························································· 21
+  Basic Drawing Tools ···························································································································································· 21
+
+  Editing Images ····································································································································································· 22
+
+  Line Tools ············································································································································································· 24
+
+  Fill Tools················································································································································································ 25
+
+
+Text ·························································································· 27
+  Creating Text ······································································································································································· 27
+
+  Manipulating Text······························································································································································· 27
+
+  Text to Path ·········································································································································································· 28
+
+
+Manipulating Images ····························································· 29
+  Basics ····················································································································································································· 29
+
+  Grouping/Ungrouping ························································································································································ 31
+
+  Compound Paths ································································································································································· 32
+
+  Moving Images ···································································································································································· 33
+
+  Rotating ················································································································································································· 33
+
+  Sizing ····················································································································································································· 34
+
+  Mirroring ··············································································································································································· 35
+
+  Arranging ·············································································································································································· 36
+
+
+                                                                                             3
+  Aligning ················································································································································································· 37
+
+  Replicating ············································································································································································ 38
+
+  Nesting (paid version only)··············································································································································· 39
+
+  Modify ·················································································································································································· 40
+
+  Offset Options ····································································································································································· 42
+
+  Tracing Options ··································································································································································· 42
+
+
+Library and Design Store ······················································· 44
+  Library ···················································································································································································44
+
+  Silhouette Design Store ····················································································································································· 46
+
+
+Saving ······················································································ 48
+
+Cutting/Sketching ·································································· 49
+  Send ······················································································································································································· 49
+
+  Test cut ················································································································································································· 53
+
+  Cutting / Sketching ···························································································································································· 53
+
+
+Print & Cut ··············································································· 55
+  Registration Marks (Positional Alignment)·················································································································· 55
+
+  Print & Cut ············································································································································································ 55
+
+
+PixScan ···················································································· 58
+  Import from Scanner ·························································································································································· 58
+
+  Import from Camera ··························································································································································· 59
+
+  Calibrating your Camera ···················································································································································60
+
+  Cutting of PixScan Image···················································································································································· 61
+
+
+Specialty Tools········································································ 62
+  Specialty Tools ···································································································································································· 62
+
+                                                                                             4
+ Score & Emboss ··································································································································································· 64
+
+ Print & Emboss ···································································································································································· 65
+
+ Sketch & Stipple ·································································································································································· 66
+
+ Stipple···················································································································································································· 67
+
+ Multiple tool use ································································································································································· 68
+
+
+Design Edition Plus Features ················································· 70
+ Appliqué Embroidery ························································································································································· 70
+
+ Sketching with Embroidery Files ······································································································································· 71
+
+ Advanced Rhinestones ······················································································································································· 71
+
+
+Business Edition Features ······················································ 75
+ Multi-Cutter Support·························································································································································· 75
+
+ Ai/EPS/CDR file compatibility ········································································································································· 75
+
+ Design View vs. Media Layout View ······························································································································· 76
+
+ Tiling Feature ······································································································································································· 76
+
+ Automatic Nesting Preview ·············································································································································· 78
+
+ Matrix Copy Feature··························································································································································· 79
+
+ Automated Weed Line Feature ········································································································································ 79
+
+
+Troubleshooting ······································································ 81
+ Common Troubleshooting Tips ········································································································································ 81
+
+ Calibration ············································································································································································· 81
+
+ Further Support Contact Information ····························································································································· 82
+
+
+
+
+                                                                                            5
+Software Usage Agreement
+Silhouette America, Inc. ("Silhouette America") hereby grants the purchaser and authorized User (the "User") the right to
+use the software (the “Software”) in accordance with the terms and conditions specified. By its purchase and/or use of the
+Software, the User hereby accepts and agrees to abide by the terms and conditions set forth herein.
+
+
+
+                                                         Copyright
+This production in whole or part, including all files, data, and documentation, hereafter referred to as the “Software”
+distributed and offered by Silhouette America Inc is copyright ©2010 by Silhouette Research & Technology Ltd, all rights
+reserved, and is protected by the copyright laws of the United States of America, international treaties and all other applicable
+national or international laws.
+
+The PixScan system has been created in conformity with U.S. Patent No. 9,396,517.
+
+See also acknowledgements below.
+
+
+
+                                                        Disclaimer
+This Software and accompanying files and documentation are distributed “as is” and without any warranties as to
+performance or merchantability or any other warranties whether expressed or implied.
+
+The user and/or licensee assume the entire risk as to the use of this Software. Silhouette America Inc does not assume liability
+for the use of this Software beyond the original purchase price. In no event may Silhouette America Inc or its suppliers be
+liable for additional direct or indirect damages including any lost profits, lost savings, or other incidental or consequential
+damages arising from the installation of the software or incompatibility with any computer system or technical limitation of
+the software or use or inability to use the software or arising from any defects, even if Silhouette America Inc has been advised
+of the possibility of such damages.
+
+Neither Silhouette America Inc. nor the author(s) warrant that the functions of the software will meet your requirements or
+that the Software is compatible with any computer system on which it is used or that operation of the Software will be
+unlimited or error free. You assume responsibility for selecting the Software to achieve your intended results and for the
+installation of, the use of and the results obtained from the Software.
+
+
+
+                                                       Restrictions
+You may not use, copy, modify, translate, or transfer the Software or any copy except as expressly defined in this agreement.
+You may not reverse engineer, decompile or disassemble the Software, including the STUDIO file format created and provided
+by the Software. Files in STUDIO format created with the Software may not be sold without express written consent from
+Silhouette America. Further, the Software may not be used in any way to reverse engineer, decompile, or disassemble the
+Firmware for any hardware units with which the Software communicates, with or without the specific intent to utilize the
+Software’s ability to communicate and further mimic or copy the methods employed by the Software to communicate with
+the Firmware. You may not remove or modify any copyright notice. This license agreement may not be modified or
+supplemented without the written consent of Silhouette America Inc.
+
+                                              Silhouette Cloud Usage
+The Silhouette Cloud library may be used to sync library files and the library folder structure between user-owned computers
+and/or mobile devices. The Cloud Library may not be used to store illegal content, including (but not limited to) copyrighted
+images not owned by the library owner, or other content including images of an illegal or inappropriate nature, as deemed by
+a local or federal law enforcement agency.
+
+                                                               6
+                                        Silhouette Cloud Content Review
+User-created files are converted to an encrypted text format when stored on Silhouette America’s servers. Silhouette America
+does not inspect, examine, or otherwise view individual files, unless to address specific support cases in which the files are
+not downloading or uploading properly, or to assist in a criminal investigation. By uploading files to the Cloud library, the user
+agrees to the above conditions of review where applicable. Files which are located in the “Local User” section of the Library
+are never uploaded to Silhouette America’s servers and cannot be seen or reviewed by the company.
+
+
+
+                                      Storage Reliability and File Backups
+Silhouette America’s Cloud Storage is a “synching service” rather than a “backup service”. Files that are deleted locally will
+also be deleted on the Cloud. As such, Silhouette recommends that users save important and/or valuable files to a
+professional third-party backup service. Silhouette America is not responsible for “user files” which are lost due to dropped
+Internet connections, accidental user deletion, or other errors which cause the files to disappear.
+
+
+
+                          Transmitting Library Data to the Silhouette Servers
+Library data is sent to Silhouette America’s servers when a signed-in Library is modified in some way, including:
+• Creating, deleting, editing, or renaming Library files
+• Creating, deleting, or renaming Library folders
+• Moving files and folders from place to place
+The software also communicates with Silhouette America’s servers when libraries are created or removed.
+
+
+
+                                                   Operating license
+You have the non-exclusive right to use the Software only by a single person on up to three (3) computers you personally
+own at any given time. In group situations, where multiple persons will use the Software, you must obtain an individual license
+for each member of the group. Further, within the Software, the ability to create and use an account for the purpose of
+obtaining additional content is provided. Each individual must obtain a unique account from Silhouette America. Accounts
+and any subsequent additional digital content obtained through Silhouette America may not be shared with any other persons.
+A person is considered using the Software if he or she has any components of the Software installed on his or her computer.
+
+
+                                                  Distribution license
+For all Silhouette America products you must be registered with Silhouette America Inc to distribute executable or compiled
+code in accordance with this license. You may not reproduce or distribute copies of any part of the Software, or the Software
+as a whole, including all source code, help files, or code units.
+
+You may not use the Software or any components therein in any other Software that directly or indirectly competes with this
+product. Specifically, you may not include this Software as part of any code library, as source code, or in compiled form. You
+may not provide any means by which your users could create, modify, or incorporate any part of this Software into their own
+products.
+
+                                                            Terms
+This license is effective until terminated. You may terminate it by destroying the complete Software and any back up copy.
+This license will also terminate if you fail to comply with any terms or conditions of this agreement. You agree upon such
+termination to destroy all copies of the Software.
+
+
+                                               Rights and restrictions
+All other rights and restrictions not specifically granted in this license are reserved worldwide.
+
+                                                               7
+                                                Acknowledgement
+By installing the Software, you acknowledge that you have read this agreement, understood it, and agree to be bound by its
+Terms and Conditions. You also agree that this agreement is the complete and exclusive statement of the agreement between
+you and Silhouette America Inc concerning the subject matter hereof and supersedes all proposals or prior agreements,
+verbal or written, and any other communication between you and Silhouette America Inc relating to the subject matter hereof.
+No amendment to this agreement shall be effective unless signed by a duly authorized representative of Silhouette America
+Inc.
+
+Parts of the software use code copyright Freetype.org ©2010.
+Potrace Professional(tm) is used under license. Copyright (c) 2001-2010 Icosasoft Software Inc. (www.icosasoft.ca). All
+rights reserved.
+
+
+
+
+                                                            8
+ Precautions in this Document
+This manual is intended to provide an overview on how to use the Silhouette Studio® software. This manual assumes
+the use of digital cutting machine of "CAMEO series, Portrait series and CURIO series." The operation instructions for
+the Silhouette cutting machine are provided in the subsequent manual for Silhouette hardware, which covers the
+instructions on settings for direct cutting from the Silhouette hardware device that uses cutting and drawing.
+
+(1) The contents of this manual may not be copied in part or in whole without permission.
+(2) The details and product specifications in this manual are subject to change without notice.
+(3) The greatest effort has been taken to ensure the clarity and accuracy of the information in this manual. Please
+contact Silhouette or your retailer with any questions you may have.
+(4) Please note that Silhouette America assumes no responsibility for any liabilities arising out of the use of this manual
+and product.
+
+
+
+
+                                                            9
+01                General Information
+Silhouette Studio® is a software that helps you design and create outline and print data of objects and text. You can draw and
+edit shapes and text, then send your designs to a Silhouette cutting machine. This machine can cut or perforate materials for
+flat projects, make 3D models from templates, and even sketch line drawings. The software is compatible with all Silhouette
+devices. Features and cutting results cannot be guaranteed for compatible plotter units or electronic cutting tools not offered
+by Silhouette America. Some features, such as Print & Cut applications, may not be available for other compatible cutting
+tools not offered by Silhouette America. Silhouette Studio® also supports convenient functions that enable the capturing of
+image data into the software and the automatic creation of registration marks for Print & Cut applications.
+
+                                               System Requirements
+The following system environment is required to use Silhouette Studio®.
+https://silhouetteamerica.freshdesk.com/support/solutions/articles/35000273905-software-overview
+
+                                                  Features Overview
+The Silhouette Studio® software includes, but is not limited to, the following software features and benefits:
+ Imports a variety of file formats
+ Print & Cut technology (requires printer)
+ Download exclusive digital content
+ Organize and optimize the library collection of images
+ Cut font files already installed on your computer
+      Manipulate Text with:
+      Word and letter wrapping
+      Alignment justification
+      Letter spacing control
+      Fit text to path
+ Draw your own images in printing and cutting formats, including:
+      Lines
+      Circles, Squares, and Rounded Rectangles
+      Polygons & Curved lines
+      Free-hand drawing tool
+ Resize images to exact specifications
+ Ungroup/Group sets of lines for manipulation
+ Edit and manipulate points of text and images
+ Erase image parts with freehand eraser tool
+ Weld images together
+ Create shadowed mat effects
+ Arrange images with following abilities:
+      Transform
+      Rotate
+      Align
+      Replicate
+      Modify
+ Manipulate line types for differing cutting actions
+ Create your own Print & Cut images by filling images with custom colors, gradients, pattern fills
+ Unlimited “Undo” and “Redo” actions
+
+
+                                               Software File Formats
+The Silhouette Studio® software uses a proprietary STUDIO file format, which consist of vector art for line and color/gradient
+fill type data intended for printing and/or cutting. The Silhouette also is able to open* the following vector file formats in a
+Ready to Cut format:
+
+
+                                                             10
+    DXF
+    SVG (paid option)
+
+The Silhouette Studio® software can also import some other vector and raster file formats for the purpose of being able to
+trace these images to create cut lines for Print & Cut images.
+
+The following additional file types can be imported:
+
+    JPG
+    BMP
+    PNG
+    TIFF
+    GIF
+    WMF
+    PDF (paid option)
+
+In addition to files that may be opened or imported, Silhouette Studio® can also access font. Please note that Silhouette
+cannot guarantee the quality or success of fonts not offered by our company as not all fonts are designed with cutting or
+sketching in mind.
+
+You are also able to create your own images to cut with the Silhouette software. There are simple line drawing functions built
+into the Silhouette software that will allow you to do so from within the Silhouette program.
+
+*Not all features of these file types may be able to be imported into the Silhouette Studio® software
+
+
+                                            Available Digital Content
+Contents are available through the Silhouette Design Store (accessed through the Silhouette Studio® software).
+
+
+
+
+The store will allow you to access and purchase additional digital content for the software, available both from Silhouette
+artists as well as independent artists and various companies, thus ensuring a variety in look and feel of available premade
+content. Further information on the store and downloading content will be provided later in this manual.
+
+
+
+
+                                                             11
+                                                                                                              02     Install the software
+
+
+
+
+02                  Install the software (Silhouette Studio®)
+Silhouette Studio® can be downloaded from the Silhouette America.com website.
+https://www.silhouetteamerica.com/software
+After downloading, follow the procedure below to install the software.
+
+                                                                Important
+     • Before installing Silhouette Studio®, log in as a user with administrator privileges for the computer.
+     • Do not connect Silhouette Cutting Machine to the computer until the software installation is completed.
+
+
+Supported OS
+• Windows/ macOS
+For details on supported OS, refer to silhouetteamerica.com web site.
+
+https://silhouetteamerica.freshdesk.com/support/solutions/articles/35000273905-software-overview
+
+For Windows
+
+ 1     Go to https://www.silhouetteamerica.com/software
+
+ 2      Select WINDOWS (64-bit) depending on the operating system used.
+
+ 3      Downloading the installer starts.
+
+ 4      Double-click the downloaded installer file "(downloaded file name).exe" to execute it.
+
+ 5      Follow the instructions on the setup screen to install it.
+
+ 6
+ 7      Click "Next (N)" when prompted on the setup wizard.
+
+
+For Mac
+
+ 1     Go to https://www.silhouetteamerica.com/software
+
+ 2
+ 3     Click MAC.
+
+ 3     Downloading the installer starts.
+
+ 4     Double-click the downloaded installer file "(downloaded file name).dmg" to execute it.
+
+ 5     Drag the Silhouette Studio® icon into the Applications folder and install it.
+
+                                                                 Caution
+     If you have already installed Silhouette Studio®, update it to the latest version from the following website.
+     https://www.silhouetteamerica.com/software
+
+
+
+
+                                                                     12
+03                        Software Overview
+
+                                               Opening the Software
+To open the software on PC, locate the desktop icon and double-click. If a desktop icon was not created during installation,
+go to the Windows Start menu and select to run Silhouette Studio®.
+To open the software on Mac, open the Applications folder and launch Silhouette Studio®.
+The Silhouette Studio® icon will appear as follows:
+
+
+
+
+Home screen
+When the software is launched, the welcome slide show is displayed at the upper part of the home screen.
+Selecting “Beginner” introduces the details of the [DESIGN], [LIBRARY], and [SEND] navigation tabs at the upper right as a
+slide show.
+
+This screen provides a start page that is friendly and easy to use for user and introduces project templates and designs
+acquired from the design store.
+
+*As screen shots used in this chapter onwards, screen shots in the dark mode          of Silhouette Studio® display color are
+used.
+                                                                     Starter mode
+
+                                                                                                             Navigation
+
+
+                                                                                                              News
+    Project Tutorial
+
+
+
+
+  Recently used library
+  files
+
+
+            Store
+
+
+
+
+                                                     Store
+
+
+Navigation Tab
+There are [DESIGN], [LIBRARY], and [SEND] navigation tabs
+Project Tutorial
+The Silhouette Studio® tutorial introduces the basic use of Silhouette Studio® that is required to make an artwork for the first
+time with the Silhouette cutting machine.
+
+
+
+
+                                                              13
+Store
+When you access the Silhouette design store, you will be led to the website of the store.
+It is possible to browse the contents, including the design and font, and purchase them.
+News
+The latest updates of cutting machines and software, including information on new Silhouette products and purchase
+information, are displayed in this section.
+
+Starter mode
+In Starter mode, which has been newly added to Silhouette Studio®, it is possible to easily proceed with the design flow while
+referring to the explanations and illustrations provided on a step basis, which makes it possible for even a beginner to
+smoothly conduct the work with fun until the end. In addition, as the step-based guide recognizes the types of artworks that
+can be created by the user, it serves to guide the user to materials, tools, and machines with higher difficulties.
+
+The SEND mode has Guide mode, which is easy to understand even for a beginner, and Standard mode.
+Guide mode
+It is possible to follow the steps from connection to cutting machine to transmission of data one by one on separate screens.
+Standard mode
+It is possible to follow the steps from connection to cutting machine to transmission of data on the same screen.
+
+
+
+
+                                                             14
+                                                    Software Sections
+The software offers several sectioned areas. Details as to each button’s specific function are discussed in later sections.
+However, so that you may be familiarized with where everything is located, a brief overview is provided for each of the sections.
+
+
+Name and functions of each component
+The software offers several sectioned areas. However, so that you may be familiarized with where everything is located, a
+brief overview is provided for each of the sections.
+
+         1
+         2
+                                                                                                                     6
+         3
+                                                                                                                     7
+
+         4
+
+
+
+
+         5
+
+
+
+
+ 1    Menu bar
+
+      File : For creating new files, opening existing files, saving files, exiting Silhouette Studio®, and so on.
+
+      Edit : For cutting, copying, pasting, and Preferences. The configuration of language and unit settings, initialization of
+              Silhouette Studio®, and other tasks can be done in Preferences.
+
+      View: For opening the grid view, setting registration marks, and so on.
+
+      Panel: For displaying each panel.
+
+      Figure: For rotating, replicating, merging, grouping, and so on.
+
+      Help: For viewing the User's Manual, version information, and so on.
+
+ 2    Toolbar
+
+      Provides shortcuts for basic functions, such as New Drawing and Save.
+
+ 3    Quick Access Toolbar
+
+      Provides tools such as grouping, replicating, and setting the stacking order.
+
+ 4    Design Tool
+
+      Provides tools for drawing basic figures and adding texts.
+
+ 5    Workspace
+
+      This is the workspace for creating designs, such as figures and texts.
+
+
+                                                                15
+ 6    Navigation Tab
+
+      Starter Mode: Switches between guide mode and standard mode ON or OFF.
+
+      DESIGN tab: This is the workspace for creating designs.
+               You can return to the design page by clicking the "DESIGN" tab even while viewing the "LIBRARY" tab or
+               "SEND" tab. For details on each function of the design page, refer to "Help" and "User's Manual..." on the
+               toolbar.
+
+      LIBRARY tab: You can access the designs saved in the library and the contents downloaded from the Silhouette Design
+                Store from the "LIBRARY" tab. In the library, you can add folders and subfolders to sort and organize the
+                designs.
+
+      SEND tab: In the "SEND" tab, you can set the cutting conditions for the design and send the cutting data to Silhouette
+              Cutting Machine.
+
+ 7    Panel Display: Displays each panel.
+
+
+ 8    Panel: Provides the functions related to the opened panel.
+
+                            [Page Setup Guide] is displayed in the [Page Setup] panel to allow you to configure the basic
+                            settings for cutting.
+                            *It can also be displayed via the [Introduction] of the [Help] menu.
+
+
+
+
+                                              Cutting/Drawing Area
+You will note there are two different sections in your workspace:
+
+                       •       White workspace
+                       •       Grey holding area
+
+
+
+
+The white workspace notes the active document area. Images may be placed or drawn onto this area, or they may be placed
+or drawn in the grey holding area. Any images in this grey area are invisible to your cutting tool or printer. You may wish to
+place images off to the side to be set aside as you do not wish to include them in your job to be printed and/or cut.
+You will note a red border inside this white workspace. The red line represents the active cutting area. The cutting tool will
+only be able to see and be able to cut what is inside this red line. All images being sent to the Silhouette to cut should be
+within this red line area.
+
+
+
+
+                                                             16
+                                                 Opening Documents
+        Though opening the software will always provide you with a new document, you may select a new workspace to start
+        a new project at any time. To start a new document you may either use the New option from the File menu, or select
+        the New icon.
+
+        To open existing files you may either use the Open option from the File menu, or select the Open icon.
+
+
+You will then be prompted to navigate to the location where your desired file is located. Through the Open feature, the
+Silhouette Studio® software has the ability to open the following cutting-type files:
+
+● STUDIO (Silhouette Studio® files)
+● GSD/GST (Graphtec “ROBO Master” program files)
+● DXF
+● SVG (paid version)
+
+* Silhouette Studio® supports the following DXF features only: Arc, Circle, Ellipse, Line, DWPolyline, Spline, and Text
+The Open feature can also access simple image file types that are not in cutting format, but may be imported for printing or
+tracing purposes. When using a PC, you will need to select “All Files” under the type of file as you seek to open another type
+of file format.
+A list of recently used documents may also be accessed from the File menu under Open Recent.
+You may also use the Merge option from the File menu to open any file into the same workspace you are using rather than
+opening a new document workspace.
+Finally, compatible file types may also be accessed by dragging the saved file from your computer directly onto your
+workspace in the software.
+
+                                                    Document Tabs
+Each new document or opened document will provide you with a new document tab at the top left-hand corner of your screen.
+
+
+
+
+The tab will be labeled as “Untitled” until you save your file with a name, or if you have opened a file that already had a name,
+in which case the file’s name will be displayed. The white tab will always be the active document while all other opened
+inactive documents will be grey. You may click on any inactive tabs to make it the active workspace and toggle between open
+documents. Clicking on the “X” will close any open workspace.
+
+
+                                                    Document Sizes
+        To adjust your document size to another setting, you may either use the Page Tools option from the View menu, or
+        select the Page icon.
+        The Page panel will allow you to alter the width or length of your document. There are pre-set common sizes you may
+select, or you may set measurements manually for any custom page sizes of material you may wish to use.
+
+While viewing the Page Settings menu, if your material is sized to fit onto the cutting mat, the cutting mat will be displayed
+to help you see how your material may be placed onto the cutting mat to feed into the Silhouette when it is time to cut. Later,
+as you go to cut, this will also be displayed to help ensure you are feeding your material into the Silhouette correctly. This
+cutting mat animation may be selected to always be displayed under the Preferences settings.
+When the cutting mat is shown, you may select the Reveal Cutting mat option in the Page Settings menu in order to show
+exactly on your mat where images will be cut in reference to the grid that is printed on the actual cutting mat.
+
+                                 As you slide the bar to the right or increase the percentage number, the white page
+                                 workspace will become more transparent and show the cutting mat beneath.
+
+A setting of 100%, or having this bar slid all the way to the right, will allow you to see the cutting mat completely and your
+white workspace will be entirely transparent.
+
+
+
+                                                              17
+                           When viewing in this manner, the red line will still represent your cutting area. Images falling
+                           outside of this red cutting area will not be cut. The darker area on the cutting mat represents your
+                           printer’s print margin area and is only for reference.
+
+
+
+
+                                                 Cutting Orientation
+Documents may be viewed in Landscape or Portrait orientation. Depending on the orientation of the document that is created
+under the [DESIGN] tab, the document is displayed in the same orientation on the [SEND] tab as well. When a new document
+is opened, it is displayed in Portrait orientation as the default.
+
+
+
+
+            Portrait DESIGN tab                                                    SEND tab
+
+
+
+
+            Landscape DESIGN tab                                                   SEND tab
+
+On the [Page Setup] panel, it is also possible to display a page by rotating it. While the Page Orientation will dictate the way
+your cutting job is being sent to the Silhouette to cut, the Rotate View option will simply rotate your workspace on the screen
+for a different perspective.
+
+
+                                               Viewing and Zooming
+Often as you view your workspace, you may either wish to zoom in to get a closer look at smaller images or parts of an image
+that may be more difficult to work with.
+Zoom In
+        This tool will zoom into the center of your workspace for a closer view.
+
+
+Zoom Out
+        This tool will zoom out from your view for a more broad perspective.
+
+
+                                                              18
+Selection Zoom
+        This tool will allow you to zoom to specific areas of your workspace by drawing a box around the area you wish to
+        zoom into.
+
+Drag Zoom
+        After clicking on this tool, your icon will appear as the Drag Zoom icon above. You may then click and hold down your
+        mouse to zoom in or out manually to any selected scale.
+
+Pan
+        This allows you to move your entire workspace around.
+
+
+Fit to Page
+        Clicking the Fit to Page icon will immediately fit the full defined workspace to the center of your screen.
+
+
+
+
+                                                       Preferences
+There are a number of user-controlled options that may be found in the Edit menu (PC) or Silhouette Studio® menu (Mac)
+under Preferences.
+
+General
+This section allows you to manually select the program language and how often you may wish the program to check for
+available software updates automatically. This section also provides preferences regarding units of measurement displayed
+in the program. You may adjust the following:
+Unit of Measurement
+Adjust all displayed measurements to desired unit.
+Dimensions
+Turn on or off image’s measurement properties as images are selected.
+
+Defaults
+This section will allow you to adjust the default settings when Silhouette Studio® software is opened. You may adjust the
+following settings:
+Default Fill Style
+Provides the ability to select how new user-drawn images are created as to whether they are displayed as an outline only (as
+red line images or grey line image), or as solid fill images (which may be preferable for the creation of Print & Cut images that
+are made by the user).
+Registration Marks Preference
+Adjusts the program to default to have registration marks turned on or off.
+Page Orientation
+Define whether Landscape or Portrait orientation is desired whenever a new document is started.
+Page Border
+Gives the option to cut to the edge of your page.
+
+
+Display
+This section provides display options including:
+Antialiasing
+Helps smooth jagged lines as they are created and viewed. Higher sample rates will increase the smoothness of lines. The
+“off” setting will produce rougher edges, but increases drawing speed.
+
+                                                              19
+Button sizing
+Allows for larger or smaller buttons to be displayed.
+Animation
+Controls speed of animating actions, such as images being moved on undo or redo actions, or during zooming in and out. Can
+be adjusted to “Instant” to turn animations off.
+Background Color Preference
+Allows you to determine the color of the inactive workspace area.
+Curve Quality
+Enhances the visual appearance of lines on screen. Does not affect actual cut quality.
+
+Import Options
+Allows you to determine the behavior of various file types when opened.
+
+Tools
+This section provides preferences for how you may wish to view bezier control handles and how you would like images to
+behave when certain modifications are applied. It also provides preferences for adjusting how the program selects images or
+how various drawing tools either continue to draw or finish upon completion of using the drawing tools.
+
+Advanced
+This section provides additional advanced options. In this section, you may adjust the following:
+Restore Factory Defaults
+Resets all preferences.
+Reindex My Library
+Performing this action will re-index the library to ensure corruption or errors may be resolved should you experience any
+concerns with your library loading properly or being able to use the library’s Search function properly.
+Set Library Permissions
+Allows library to be properly accessed according to computer account permissions.
+Restore Pre-loaded Designs
+Restores pre-loaded designs according to the Silhouette model detected.
+Reset Library
+This action will remove all images and folders from your library and reset the library back to its original software installation
+settings.
+OpenGL Settings
+Attends to select display issues.
+HTTP Sockets
+Depending on your internet connection speed, this option may be adjusted to a higher number of sockets to increase the
+download speed when purchasing images from the Design Store.
+IME Setting
+Allows for typing of non-western characters.
+Proxy Settings
+Used for proxy connection setups.
+Packet Size
+Rate at which information is sent to the Silhouette.
+
+        Another program option not in the Preferences menu is the Software Color Theme button located in the bottom right-
+        hand corner of the software screen.
+Clicking on this button will cycle through a preselected list of color themes for the software’s overall appearance, should you
+prefer some color other than the default dark grey interface.
+
+
+                                                              20
+04                Drawing/Editing Images
+
+                                                  Basic Drawing Tools
+Silhouette Studio® allows users to draw and create images very easily through a set of basic drawing tools. All drawing tools
+are located on the left side of the software screen.
+
+Line Tool
+        The Line Tool allows for the creation of single straight lines. Holding down the Shift key on your keyboard while
+        drawing will force a straight vertical, horizontal, or 45 increment line from the start point.
+
+
+Polygon Tool
+          The Polygon Tool allows for the creation of multiple straight lines. A point will be created upon each mouse click.
+          Lines will continue to be drawn until the image is closed by aligning the end point with the starting point, or by double-
+          clicking the mouse to stop drawing. Holding down the Shift key on your keyboard while drawing will force a straight
+vertical, horizontal, or 45 increment line from the start point or last point dropped.
+
+Curved Shape Tool
+        The Curved Shape Tool allows for the creation of multiple curved lines. A point will be created upon each mouse click.
+        Lines will continue to be drawn until the image is closed by aligning the end point with the starting point, or by double-
+        clicking the mouse to stop drawing.
+
+Arc Tool
+        The Arc tool allows you to draw any size arc on your page.
+
+
+
+Rectangle Tool
+        The Rectangle Tool allows for the creation of a square or rectangle. Holding down the Shift key on your keyboard
+        while drawing will create a square, while holding down the Alt key on your keyboard will make the initial cursor
+        point where your image is started as the exact center of your object.
+
+Rounded Rectangle Tool
+        The Rounded Rectangle Tool allows for the creation of a square or rectangle with rounded corners. Holding down the
+        Shift key on your keyboard while drawing will create a rounded square, while holding down the Alt key on your
+        keyboard will make the initial cursor point where your image is started as the exact center of your object. As a
+rounded rectangle is selected, you will find two red control points on the rectangle’s upper left-hand corner. These may be
+dragged to adjust the curves of the rectangle’s top and bottom or sides, or you may select both simultaneously by holding
+down the Shift key on your keyboard and dragging one of the control points.
+
+Ellipse
+          The Ellipse Tool allows for the creation of an oval or circle. Holding down the Shift key on your keyboard while drawing
+          will create a circle, while holding down the Alt key on your keyboard will make the initial cursor point where your
+          image is started as the exact center of your object.
+
+Regular Polygon
+          The Polygon Tools allows for creation of shapes of different number of sides. The default number of sides is five,
+          but the slider bar in the middle provides a method of raising or lowering the number to produce different shapes,
+          such as a triangle.
+
+                                                                21
+Freehand Tool
+        The Freehand Drawing Tool allows for the creation of a continuous free-form line. Lines drawn with this tool will
+        continue until the mouse button is released, or the image is closed by aligning the end point with the start point.
+
+
+Smooth Freehand Tool
+        The Smooth Freehand Drawing Tool allows for the creation of a smooth, continuous free-form line. Lines drawn with
+        this tool will have smooth transitions and no sharp angles. Lines drawn with this tool will continue until the mouse
+        button is released, or the image is closed by aligning the end point with the start point.
+
+
+                                                     Editing Images
+All line points on images may be edited, if changes to the existing image are desired.
+
+Select Tool
+        The Select Tool determines which image is selected as the active image and allows you to move images around on
+        your screen.
+        This is your default tool to click on images to show they are selected.
+
+Edit Points
+         To enter the Point Editing Mode, you may either double-click on a selected image, or use the Edit Points tool. This
+         tool will allow you to edit any points of your image to move them around or remove them. Only single ungrouped line
+         selections may be edited. Ungrouping will be discussed in later sections.
+To exit the Point Editing Mode, you may double-click on your image again, or return to the regular select mode by clicking on
+the Select tool.
+
+Point Editing Mode
+When you enter the Point Editing Mode, selected images will change from displaying the resizing and rotating control handles
+around the image to showing the points, or nodes, of the image. Points on lines are where the line may take a new direction
+or change from being flat (or straight) to being curved.
+
+
+
+
+                         Regular Selection                    Mode Point Editing Mode
+
+In Point Editing Mode, the selected point will be displayed in white while all other points will be dark grey. The selected line
+associated with the selected point will be emphasized as a bolded red line. Additional lines that have blue points are handles
+to adjust curved lines.
+In Point Editing Mode, you will also be shown the Point Editing toolbar on the right-hand side of the screen. You may do the
+following actions in Point Editing Mode:
+
+Move/Adjust Points
+Move a point by hovering with your mouse over any point on the line. Once over a point that may be edited, the cursor will
+adjust to show you may click and grab the point to move it to any desired location. With curved lines, you may similarly grab
+the blue points and drag them around the screen to adjust the curve of the associated line segment.
+
+Add Points
+Add a point by hovering over the line where no points currently exist where you may wish to drop a new point to edit your
+image. Once over a line where a point may be dropped, the cursor will be adjusted to show you may click to drop a point onto
+the desired line location.
+
+
+                                                             22
+Delete Point
+         Any selected point will be deleted by using the Delete Point tool, or by right clicking on the selected point and
+         choosing the Delete Point option. Deleting a point will cause the closest points on either side of the deleted point to
+         join and create a new connecting line. Note that this tool is different from deleting an image and is only intended to
+delete individual points. It will only be available while in Point Editing Mode.
+
+Break Path
+        You may break the path of any line point by using the Break Path tool, or by right clicking on the selected point and
+        choosing the Break Path option. Breaking a path will create two new points from the originally selected point where
+        the path was broken.
+You will note that a broken path, or two unconnected end points of opposite ends of the same line, may be re-joined by
+dragging one end point onto the opposite end point of the image.
+
+Corner
+        The Corner tool will allow a selected point to be so that the control handles at the selected intersecting point can be
+        adjusted each individually to create a sharp corner.
+
+
+Smooth
+        The Smooth tool will allow a selected point to be adjusted to make a smooth transition point at the selected
+        intersecting point.
+
+
+Make Flat
+        The Make Flat option will adjust the selected line (the line emphasized in bold red that is associated with whichever
+        currently selected point) to a flat, straight line.
+
+
+Make Curve
+        The Make Curve option will adjust the selected line (the line emphasized in bold red that is associated with whichever
+        currently selected point) to a curved line.
+
+
+Simplify
+        Some library images or other imported images from other sources may contain a very large number of points. The
+        Simplify tool will automatically re-adjust the image’s points and simplify the image to its simplest possible point form
+        while maintaining the image’s original overall line form.
+Aside from the tools found in Point Edit Mode, there are two additional editing tools found on the left-hand side of the screen.
+
+Eraser Tool
+        You may erase any part of any image using the Eraser tool to easily and immediately remove inner parts or edges of
+        the line image.
+
+
+
+
+                         Original Image                     New Image Using Eraser Tool
+
+
+
+
+                                                             23
+Knife Tool
+        You may segment images using the Knife tool. This tool delivers a straight-line cut to separate parts of images to
+        create a new separate independent shape.
+
+
+
+
+                       Original Image                           New Image Using Knife Tool
+
+
+                                                         Line Tools
+Lines in the program, including text, images created using the drawing tools, and library images, may be altered to have
+different properties.
+
+Line Color Options
+        While lines will default to be displayed in red, you may alter lines to any desired color. Altering line colors will not
+        affect their properties in how they may cut. Altering line colors may be helpful to allow you to more easily view
+        different images or image parts, see lines in whichever color you may prefer to view them, or adjust image parts
+specifically with printing in mind for Print & Cut jobs where it may be important that line colors are selected to be printed.
+To adjust line colors, select your image and access the Line Color menu by clicking on the icon shown above. You may then
+select any of the Basic Menu color options. The hash line selection will always represent “clear”. The color picker tool will
+allow you to select any color from another object in the drawing area to duplicate the desired color.
+
+
+
+
+                        Clear       Color Picker
+
+The Advanced Options menu will allow you to create lines in any desired custom color. You may either drag the target on the
+color spectrum to visually match the color you are looking for, or type in the RGB (Red Green Blue) or HSL (Hue Saturation
+Lightness) value of your desired color. You will also have the ability to adjust the Transparency of the line.
+
+
+Line Style Options
+        Within the Line Style menu, you may adjust the style of your line to be a solid (default) or dashed style line. Lines will
+        accordingly be cut or printed in the selected style.
+
+Lines are viewed in point sizes regarding their width. The point size may be adjusted to any desired specification. While line
+width may be adjusted, the line will always be cut or sketched in a fixed width; that is, according to how thick the blade or
+pen is that you are using.
+Line thickness may be adjusted by either manually dragging the Thickness option bar or by typing in the desired point
+thickness.
+The Corner Style option will adjust how lines appear at any of the image’s corner points where Corner is a sharp edge whereas
+Rounded will be a smoother edge.
+The End Cap Style option will only adjust lines that have open ends. Flat or Square provide varying sharper flat edges at the
+line tip whereas Rounded provides a smoother rounded edge to the line tip.
+The Position option will adjust if the line is In Front of a filled image, or Behind the filled image. To print out an image, it is
+necessary to check the “Print Lines of Selected Shapes” checkbox and set a value other than zero to the line thickness in
+advance.
+
+
+
+
+                                                               24
+                                                            Fill Tools
+Closed images (where the starting point of the line connects with the ending point of the line) including Text, images created
+using the drawing tools, and library images, may be altered to have different filled properties. Only closed images may have
+filled attributes. If the path is broken on any closed images, any applied fill attributes will immediately disappear.
+
+Fill Color Options
+        While closed images will default to be displayed as empty, you may fill any closed image with any desired color.
+        Altering fill colors may be helpful to allow you to more easily view different images or image parts, see shapes and
+        text in whichever color you may prefer to view them, or adjust images specifically with printing in mind for Print &
+Cut jobs.
+
+         To apply fill colors, select your closed line image and access the Fill Color menu by clicking on the icon shown above.
+         You may then select any of the Basic Menu color options. The hash line selection will always represent “clear”. The
+         color picker tool will allow you to select any color from another object in the drawing area to duplicate the desired
+color.
+
+
+
+
+                        Clear       Color Picker
+
+The Advanced Options menu will allow you to create fill colors in any desired custom color. You may either drag the target
+on the color spectrum to visually match the color you are looking for, or type in the RGB (Red Green Blue) or HSL (Hue
+Saturation Lightness) value of your desired color, if you are seeking a specific known color. You will also have the ability to
+adjust the transparency of the filled color by manually dragging the Transparency option bar or by typing in the desired
+percentage of how transparent you wish the filled color to be, where 0% is solid and 100% is completely clear.
+
+Fill Gradient Options
+         Similar to filling images with solid colors, you may also select to fill any closed line images with a gradient fill.
+
+
+To apply gradient fill options, select your closed line image and access the Fill Gradient menu by clicking on the icon shown
+above. You may then select any of the Basic Menu precreated gradient options. The hash line selection will always represent
+“clear”.
+
+
+
+Clear
+
+You may also alter the basic direction of the gradient by clicking on any of the Direction options at the bottom of the Basic
+Options panel.
+
+The Advanced Options menu will allow you to create your own custom gradient fills based off of the last gradient fill selected.
+Gradient fills will always have a minimum of two colors, with one color at the top and one color at the bottom. The gradient
+will then create a range between the two selected colors.
+
+
+
+
+You may change either of these colors in the range by clicking on the color arrow bars on the left-hand side of this gradient
+creator tool. Once the color is selected, you may then select any new color from the Select Color tools directly below. You
+may also add new bars at any interval between the top and bottom colors, or slide any color bars in between the top and
+bottom gradient color bars up and down to create new gradient effects.
+
+Also in the Advanced Options is the ability to rotate the angle of the gradient effect to any customized degree by either
+manually dragging the Angle tool or by typing in a specified degree. You will also have the ability to adjust the transparency
+of the line by manually dragging the Transparency option bar or by typing in the desired percentage of how transparent you
+wish the filled gradient effect to be, where 0% is solid and 100% is completely clear.
+
+
+
+                                                                25
+Fill Pattern Options
+        The final fill option is used to fill any closed line images with a pattern fill. To apply pattern fills, select your closed line
+        image and access the Fill Pattern menu by clicking on the icon shown above. You may then select any of the pattern
+        options.
+Once your desired pattern fill is selected, the Advanced Options menu will allow you to adjust the pattern’s direction
+Horizontally or Vertically, or adjust to either a Fixed or Stretch aspect ratio. Options are provided in this menu to rotate the
+pattern by either simple preset degrees, or to any customized degree by either manually dragging the Angle tool or by typing
+in a specified degree.
+
+In addition, you have the ability to scale the pattern’s size to alter the pattern itself as it fills the selected shape. You may do
+this by either manually dragging the Scale Pattern bar or entering a new percentage value of how much larger or smaller you
+may wish to make the filled pattern.
+You will also have the ability to adjust the transparency of the line by manually dragging the Transparency option bar or by
+typing in the desired percentage of how transparent you wish the filled gradient effect to be, where 0% is solid and 100% is
+completely clear.
+
+Additional patterns may be downloaded from the Silhouette Design Store.
+
+You can create patterns from your own images by going to File > Import > Import Options. Navigate to the image you would
+like to use and select it. A new dialogue box appears where you can add information about the image. Press OK to add the
+image to the User Designs folder in your library. From there, you can drag your image onto any fillable shape on your
+workspace.
+
+Shadow Options (paid version only)
+You can add and adjust a shadow by clicking the Shadow icon in the toolbar above the workspace. In the Shadow menu, you
+can adjust the shadow offset, color and transparency.
+*Function of [Image Effects] panel
+
+Sketch Options
+        Create a sketch design by clicking the Sketch icon in the toolbar above the workspace. In the Sketch menu, you can
+        adjust the sketch edge, fill type, and fill effect.
+
+
+Rhinestone Options (paid version only)
+        Create a rhinestone design by clicking the Rhinestone icon in the toolbar above the workspace. In the Rhinestone
+        menu, you can choose a rhinestone effect, rhinestone size and spacing, and placement options.
+
+
+
+
+                                                                  26
+05                Text
+
+                                                      Creating Text
+       Silhouette Studio® has the ability to utilize any font that is installed on your computer. You do not need to install these
+       fonts into the program. Silhouette Studio® will simply access all installed font files and display them for you as you go
+to create your desired text.
+
+To use your fonts, click on the text tool located on the left-hand side of the software screen.
+
+Clicking this will allow you to place a text cursor onto your workspace and begin typing directly onto the screen.
+
+
+
+
+The red blinking line is your cursor to show where you are typing. You may back up or move forward by either clicking your
+mouse or using your computer’s right and left arrow keys.
+
+The surrounding green box is your text box. This box may be adjusted by clicking and holding the black bar on the right edge
+of the text box. Dragging this bar to the left will allow you to wrap your text. Dragging this bar to the right will allow you to
+bring text back toward being on a single linear path.
+
+You may double-click or click outside of the text to exit the Text Editing Mode. You may return at any time to re-edit any
+words or letters by double-clicking again on your created text.
+
+
+                                                   Manipulating Text
+During the creation of your text, the Text Style menu will be opened on the right-hand side of your screen providing multiple
+adjustment options.
+
+Available Fonts
+The first section of this menu will display the current selected font with additional font options that are installed on your
+computer you may scroll through. The top of this section may be used to search for any specific font by typing in a font name
+if it is known.
+
+You may change fonts during the Text Editing Mode and use a new font within the same text box with other fonts. Different
+fonts may also be applied to existing text or letters during Text Editing Mode by highlighting the desired string and selecting
+the newly desired font. If you are not in Text Editing Mode, new fonts may still be applied to selected text, but such
+adjustments will change the font for the entire selected text box.
+
+Font Characteristics
+Some fonts are programmed to enable the use of certain style characteristics allowing you to bold, italicize, or underline text
+or letters. These characteristics will only be highlighted to be available for selecting if the font in question is programmed
+with that characteristic and such characteristics can be applied. To apply one of these characteristics, you may highlight the
+intended letters or words and then click on the available characteristic.
+                  While Bold, Italic, and Underline options are displayed, if there are any additional available options
+                  programmed for the selected font, a scroll bar will appear on the right-hand side of this option box allowing
+                  you to scroll down and view whatever other options may be programmed.
+
+
+
+
+                                                              27
+Text Justification
+                         While text will be automatically be justified to the left, if your text is wrapped on multiple lines, you
+                         may alter your text justification as desired.
+
+
+Text Size
+Text size will always default to 72-point size. This refers to the font’s printed font size. Though fonts vary as they are
+programmed by a wide variety of sources, this will generally equate to roughly a one (1) inch height (or 25 mm). The most
+common point sizes for print-format fonts are included in the available drop-down list, though any custom number may be
+manually typed into this size preference.
+
+
+
+Other common equivalent measurements in the list include:
+18 pt = 0.25 inch (6 mm)
+24 pt = 0.33 inch (8 mm)
+36 pt = 0.5 inch (13 mm)
+48 pt = 0.66 inch (17 mm)
+144 pt = 2 inches (50 mm)
+288 pt = 4 inches (100 mm)
+
+Again, these measurements are approximations and will vary from font to font, so if you are seeking to obtain a specific
+measurement, you may wish to alternately re-size your text to your desired specification after creation.
+
+Character Spacing
+Letters may be adjusted from their normally programmed spacing to either bring them closer together or push farther apart
+with the Character Spacing option.
+                                Spacing will always start at 100% indicating spacing between characters are normally
+                                distanced. As the number is lowered or the bar is slid to the left, letters will come closer
+                                together. As the number is raised or the bar is slid to the right, letters will become spaced
+                                farther apart.
+
+Line Spacing
+If your created text is wrapped to multiple lines, you may similarly increase or decrease the Line Spacing option to adjust the
+distance between lines of text.
+                                  Spacing will always start at 100% indicating spacing of lines are normally distanced. As the
+                                  number is lowered or the bar is slid to the left, text lines will come closer together. As the
+                                  number is raised or the bar is slid to the right, text lines will become spaced farther apart.
+
+                                                       Text to Path
+       As text is created, or while in Text Editing Mode, you will find a control point located on the left-hand side of the text
+       being created:
+                                          This control point may be dragged to rest directly on any line path within your
+                                          workspace. For example, you may create an oval with the Ellipse tool and then drag
+                                          your text onto this line to achieve an arced effect:
+
+                                          As text is applied to a path in this manner, you will note a vertical bar to the left of
+                                          the text. This allows for a new control bar which can be used to adjust the placement
+                                          of your text relative to the line onto which the text has been applied so that it may
+                                          be placed on, above, in line with, or below the path.
+
+Note also that the object used as a path will turn grey. This indicates that this image is now turned off for cutting purposes.
+If you wish to re-enable the object being used as a path to cut, you may visit the Cut Style Options as previously discussed
+and select Enable Cut Style as the grey path object is selected.
+
+
+
+
+                                                              28
+06                Manipulating Images
+There are many tools in Silhouette Studio® allowing for basic and advanced manipulation of images and text. The following
+section provides an overview for all of these included tools and how they may be used.
+
+                                                            Basics
+Like most any software program, Silhouette Studio® has a set of common basic editing tools as follows:
+
+Selecting
+Images may of course be selected by clicking on them. Multiple images may be selected by holding down the Shift key on
+your computer keyboard and clicking on another image. You may repeat this action to select as many images as desired.
+Holding down the Shift key and clicking on an image that is already selected will deselect that image.
+
+                                          Multiple images may be also be selected by clicking above an image and dragging
+                                          your mouse to enclose all desired shapes to be selected at the same time. As you
+                                          hold your mouse button down and drag your mouse, you will see a dashed line
+                                          creating a selection box showing what you are selecting. Upon letting go of your
+                                          mouse, all enclosed images in this box will be selected together in the same
+                                          bounding box.
+
+
+
+          If you wish to select all available images on the screen together, you may click on the Select All button located in
+          the Quick Access Tool bar.
+
+          If you wish to select only those images that are the same color, you may click on the Select by Color button
+          located on the right-hand side.
+
+         If you wish to deselect all currently selected images, you may click on the Deselect All button located in the Quick
+         Access Tool bar.
+
+
+Cut, Copy, and Paste Tools
+                   These tools perform the basic expected actions of copying selected images, pasting them, or cutting them
+                   from view. Images copied or cut will reside in your computer’s memory on a virtual clipboard. You may only
+                   have one object on this clipboard at a time. This means if you copy one image and then copy another, only
+the most recent image will be waiting on the clipboard to be pasted. These actions may be accessed from the top tool bar, in
+the Edit menu, or by right-clicking on an image, as well as by using standard shortcut keys for these actions.
+Pasting copied images will place the copy directly to the right of your original image so you may easily see and find your copy.
+An additional Paste in Front option is also provided to be able to paste a copy of an image directly on top of itself and is found
+in the Edit menu, in the right-click menu for the selected image, or by using standard shortcuts for this action.
+
+Duplicate
+         The Duplicate option performs the same action as copying and pasting the selected image to the side, but does so
+         without the need of utilizing your clipboard and is a one-click operation. This toolbar button is located at the top of
+the software screen and can alternately be located in the Edit menu or by right-clicking on a selected image.
+
+Delete
+        Selected images may be deleted from your workspace by clicking on the Delete button located at the top of the
+        software screen, by accessing the Edit menu and selecting Delete, right-clicking a selected image and choosing the
+        Delete option, or by simply pressing the Delete key on your computer keyboard.
+
+
+
+                                                              29
+Undo/Redo
+             Any action taken, including simply moving an image, may be undone. To back up to the previous action taken,
+             click the Undo button. There are an unlimited number of actions you may go back to with the Undo button,
+including going back to when you first opened your new workspace.
+
+Similarly, you may click the Redo button to repeat any actions you may have undone. You may continue to use this button
+until you return to the last action taken.
+
+Transfer Properties (paid version only)
+      Properties such as line color and cut style can be transferred from one shape to another by selecting the shape you
+      want to transfer properties to, selecting the Eye Dropper icon in the left-hand tool bar, and then clicking on the shape
+you want to imitate.
+
+Layers (paid version only)
+        When you import a project with layers created in another program, you can access those layers in the Layers panel.
+        You can also the +/- keys to add or remove layers in Studio.
+
+
+
+
+                                                            30
+                                                Grouping/Ungrouping
+These two actions are commonly used and are invaluable tools for helping to manipulate and adjust images. To understand
+these concepts we must first understand what grouped and ungrouped images are.
+
+The following is an example of a single line:
+
+                      While the image may have many parts, it is still just one line with a single starting point and end point.
+
+
+
+
+The following is an example of a multiple line image:
+
+                      This image has two line sets with the body of the leaf and stem being one part and the inner details of
+                      the leaf being another. This image is grouped together so that if moved around on your screen, you do
+                      not have to move the outer line of the leaf and then move the center part independently and try to align
+                      it inside.
+                      While it is not necessarily important to know exactly how many line parts an image has, it is important
+                      to understand that single line images are not grouped together with anything, while anything that has
+                      multiple parts is or can be grouped.
+
+
+Grouping
+Any two sets of lines can be grouped together so they are fixed in their relative positions, even if moved, by using the Group
+option.
+
+       To use the Group option, select two or more images at the same time and click on the Group icon located in the Quick
+       Access Tool bar. This can alternately be located in the Object menu or by right-clicking on the multiple selected
+images and selecting Group.
+
+         Any image that contains more than one line set can be ungrouped so that parts of the image may be treated
+         independently, removed, rotated, resized, or otherwise manipulated rather than having to manipulate the image as a
+whole.
+
+For example, you may wish to cut out this coffee cup image, but want to ungroup the image in order to remove some of the
+inner decorations of the image:
+
+                  Once ungrouped, the image will be displayed showing individual selection boxes around each new
+                  ungrouped image part that can now be manipulated.
+
+
+
+
+                   To access the individual ungrouped parts, you may unselect your image.
+
+
+
+
+                                                             31
+                                                     Compound Paths
+The concept of compound paths is important in order to understand why certain attributes may be applied differently to
+seemingly identical situations. Compound paths are a collection of two or more line sets where inner lines are embedded into
+the image. A compound path may appear the same as a grouped set of lines, but is quite different in the way it will react to
+being filled with color, for example.
+
+Compound paths are only really a concern when you are creating Print & Cut images.
+
+
+
+
+       Non-compound Image                                  Compound Path Image
+
+In the previous examples, the top two images are seen straight on and appear to be identical. However, when looking at the
+bottom set of images the differences become apparent. With the image on the left, from a side view we are actually looking
+at a grey butterfly with white spots resting on top. This is an image that is not a compound path. With the image on the right,
+from a side view we see that we are looking at a grey butterfly with white spots embedded into the image.
+Of course, as we go to cut or sketch both images with the Silhouette, they will cut out in the exact same manner, but it is
+important to understand that there is a difference between these images as you may wish to achieve certain effects with
+filling images for Print & Cut applications.
+
+For example: This is the same image unfilled. All parts are grouped together.
+
+
+
+
+If this is a non-compound image and it is filled with a color feature, this will be the result:
+
+                                      Even though grouped together, all line sets are still just individual pieces lying on top of
+                                      each other, so they are all filled with the selected fill effect.
+
+
+
+
+                                                                32
+If this image has a compound path and it is filled with a color feature, this will be the result:
+
+                                     The unfilled parts of the image cannot be filled with compound path images because these
+                                     embedded areas are negative space.
+                                     Compound paths can still be ungrouped to move multiple image parts around, but the
+                                     action of ungrouping will immediately release the compound path and make it a non-
+                                     compound path image.
+                                     To make a series of multiple selected images a compound path, you may right-click until
+                                     the multiple parts are all selected and select Make Compound Path. Similarly, you may
+                                     right-click on a compound image and select Release Compound Path to perform the
+                                     opposite action. These options may also be found in the Object menu.
+
+The following section explains the functions that are accessible from the [Transform] panel.
+
+
+                                                      Moving Images
+                                      Images may obviously be moved by selecting them and then dragging them around the
+                                      screen with your mouse to any desired location. Selected images may also be moved by
+                                      using the arrow keys on your computer keyboard.
+
+                                      You may also move images through the Move menu panel.
+
+                                     Selected images may be moved by using any of the Move options. The directional arrows
+                                     in this screen will move images subtly in whichever direction you select. This action may
+be repeated until your image is located on your workspace as desired.
+The Move By option will move selected images from the current location by whatever measurement is entered, while the
+Move To option will move images regardless of present location to a specific plotted course on your workspace, where a
+measurement of 0, 0 (zero, zero) represents the upper left-hand corner of your workspace and moves out from that point
+either to the right or downward as the values increase.
+
+                                                           Rotating
+Objects may be rotated to any desired angle. Selected images will always appear with a green rotation handle-bar that may
+be manually grabbed and rotated using your mouse.
+
+
+
+
+         Rotate functions may be accessed in the Transform panel.
+         The Rotate menu options will also provide additional rotation options for more exact or specific rotation options.
+
+Within the Rotate menu you may select any of the following options:
+
+Rotate By
+These options will rotate the selected image by the selected common angle from the image’s current angle.
+
+Rotate To
+These options will rotate the selected image to the selected angle based on the image’s original fixed 0° point.
+
+Custom Rotate By
+This option will allow you to either manually slide a degree measurement bar or enter a specific degree measurement and
+apply to rotate the selected image from the image’s current angle.
+
+
+                                                                33
+Custom Rotate By
+This option will allow you to either manually slide a degree measurement bar or enter a specific degree measurement and
+apply to rotate the selected image from the image’s current angle.
+
+Custom Rotate To
+This option will allow you to either manually slide a degree measurement bar or enter a specific degree measurement and
+apply to rotate the selected image based on the image’s original fixed 0° point.
+
+Center of Rotation (paid version only)
+To adjust the point around which your shape rotates, you can adjust the center of rotation. To do so, select the shape you
+want to rotate, press the letter ‘O’ on your keyboard to display a small cross-hair icon in the center of the shape. You can then
+move the cross-hair icon to the desired new point of rotation.
+
+                                                           Sizing
+Objects may be sized to any desired measurement. It is important to note, however, that while you may customize images to
+any desired size, the quality of cuts made may vary, especially when cutting thicker materials such as cardstock. Reducing
+the size of an image with intricate parts and cutting it in a thicker material is an example where the cut quality could suffer.
+
+You will be able to view the measurement alongside your image as you draw or select images.
+
+                            There are also control points on the selection box for resizing images manually. To resize manually,
+                            simply click on any of these boxes and drag your mouse in the desired direction to make your
+                            shape larger or smaller. The corner control points will proportionately resize the image and
+                            maintain the relative height and width, while the side control points will stretch your image in the
+                            direction your mouse is dragged.
+
+
+
+
+        The Scale menu options will also provide additional sizing options for more exact or specific rotation resizing options.
+
+
+Within the Scale menu you may select any of the following abilities.
+
+Scale
+These options will resize any selected images by a percentage of its current size. Any number under 100% will make your
+image smaller and any number over 100% will make your image larger. For example, selecting to resize your image to 50%
+of the current size will make your image half as large while selecting to resize your image to 200% of the current size will
+make your image twice as large. Any custom percentage may be applied as desired.
+
+Specify Dimensions
+This option will allow you to resize a selected image to any specific measurement. The Lock Aspect Ratio option when
+checked will ensure your image is resized proportionately when only one measurement is being altered but you wish to
+maintain the image’s proportions.
+
+
+
+
+                         With Lock Aspect Ratio                  Without Lock Aspect Ratio
+
+
+
+
+                                                              34
+Shear (paid version only)
+       Use Shear to skew your design vertically or horizontally. You can select from preset amounts or specify a custom
+       shear.
+
+Grid
+       To assist with viewing measurements, you may also opt to turn on the grid by either right-clicking on your workspace
+       while there are no images selected and clicking on Show Grid, or by going to the Grid menu.
+       *It is also possible to show the grid by using [Grid Settings] in the [Page Setup] panel.
+
+In the Grid menu you may turn the grid on and off, adjust the grid spacing to any desired measurement, and define the number
+of divisions in the grid.
+
+
+
+
+                           Single Division                          Multiple Sub-Division
+
+The Snap to Grid option when enabled will force the image to conform to grid’s measurement and divisions. This may be
+especially helpful when drawing images to force them to conform to specific desired measurements.
+The grid’s Style may be selected to be either a traditional Square grid or an Isometric grid. Again, the different styles may be
+helpful while drawing images within the software to provide a reference for measurement as you draw.
+
+
+
+
+                              Square Grid                                          Isometric
+
+The grid’s Color can also be adjusted as desired and offers a preselected set of color suggestions which may provide a non-
+intrusive appearance for your grid, though any custom color may, of course, be selected. In the paid version, you also have
+the ability to activate Rulers and Crosshairs to help make the layout easier.
+
+
+                                                        Mirroring
+Some materials or situations require images to be cut in a mirror image format, or you may simply want to flip objects around
+to achieve your desired image appearance.
+
+To mirror an image, you may right-click any selected image to select the Mirror Horizontally or Mirror Vertically option.
+
+
+
+
+                           No Mirror Effect                                Mirrored Horizontally
+
+
+
+
+                           Mirrored Vertically                          Mirrored Horizontally and Vertically
+
+Further mirroring options may be accessed in the Replicate panel.
+In this menu, you may likewise flip your images around (as displayed above) under the listed Flip menu options.
+
+
+                                                             35
+You may additionally create mirror copies of selected images with the Mirror menu options, where you may create a mirrored
+copy to the left, to the right, mirrored above, or mirrored below.
+
+To mirror an image, you may right-click any selected image to select the Mirror Horizontally or Mirror Vertically option.
+
+
+
+
+    Original Image     Mirror Copy Above       Mirror Copy Below               Mirror Copy Left          Mirror Copy Right
+
+
+                                                       Arranging
+Multiple images may overlap each other. The order of which image is in front and which is in back can be arranged. This is
+mostly used with filled images for Print & Cut applications so you can determine which image should be in front of the other.
+
+
+Bring to Front
+       This option will take your selected image and move it in front of all other overlapping images.
+
+
+
+
+                        Original Image          Order Circle Selected and Brought to Front
+
+
+Send to Back
+        This option will take your selected image and move it behind all other overlapping images.
+
+
+
+
+                        Original Image             Order Triangle Selected and Sent to Back
+
+
+
+
+                                                            36
+      In addition to these options, you may also right-click on an image and select Send Backward to send the selected
+      image one level back rather than all the way to the back.
+
+
+
+
+                      Original Image Order               Triangle Selected and Sent Backward
+
+      Similarly, you may right-click on an image and select Bring Forward to bring the selected image one level forward
+      rather than all the way to the front.
+
+
+
+
+                         Original Image Order              Circle Selected and Brought Forward
+
+
+                                                      Aligning
+      Multiple images may be aligned in relation to each other. The following Align options are available:
+
+
+Centralize (Align Center-Middle)
+      This option will center two or more selected objects so that they are lined up with each other in the middle of each
+      other.
+
+
+Align Left
+      This option will align two or more selected objects so that they are aligned together to the left edge of the shared
+      bounding box while maintaining their respective distances in regard to being above or below each other.
+
+
+Align Center
+      This option will align two or more selected objects so that their center points are aligned together while maintaining
+      their respective distances in regard to being above or below each other.
+
+
+Align Right
+      This option will align two or more selected objects so that they are aligned together to the right edge of the shared
+      bounding box while maintaining their respective distances in regard to being above or below each other.
+
+
+
+                                                           37
+Align Top
+       This option will align two or more selected objects so that they are aligned together on the top edge of the shared
+       bounding box while maintaining their respective distances in regard to being next to each other.
+
+
+Align Middle
+       This option will align two or more selected objects so that their center points are aligned together while maintaining
+       their respective distances in regard to being next to each other.
+
+
+Align Bottom
+       This option will align two or more selected objects so that they are aligned together on the bottom edge of the shared
+       bounding box while maintaining their respective distances in regard to being next to each other.
+
+
+Space Horizontally
+        When a minimum of three objects are selected, this option will take all images and space them horizontally so that
+        all objects are equidistant from each other horizontally.
+
+
+Space Vertically
+        When a minimum of three objects are selected, this option will take all images and space them vertically so that all
+        objects are equidistant from each other vertically.
+
+
+                                                       Replicating
+        Replicating while similar to copying and pasting an image or duplicating it allows for the ability to create any number
+        of copies and place them at once without the need to copy and paste the images multiple times and then have to
+        place them manually around the screen as desired. These options will also create copies next to each other as closely
+as possible to maximize your cutting area.
+
+You will find the following options in the Replicate options basic menu.
+
+Duplicate Left
+        This option will duplicate the selected object and place a copy directly to the left with the most minimal amount of
+        space between the objects as possible.
+
+
+Duplicate Right
+        This option will duplicate the selected object and place a copy directly to the right with the most minimal amount of
+        space between the objects as possible.
+
+
+Duplicate Above
+        This option will duplicate the selected object and place a copy directly above with the most minimal amount of space
+        between the objects as possible.
+
+
+Duplicate Below
+        This option will duplicate the selected object and place a copy directly below with the most minimal amount of space
+        between the objects as possible.
+
+
+
+
+                                                             38
+Row of Three / Row of Four
+                  These options will copy the selected object and replicate two or three additional copies next to each other
+                  in a row, stacked horizontally next to each other, with the most minimal amount of space between the
+                  objects as possible.
+
+
+Column of Three / Column of Four
+                 These options will copy the selected object and replicate two or three additional copies next to each other
+                 in a column, stacked vertically on top of each other, with the most minimal amount of space between the
+                 objects as possible.
+
+
+Rotate One Copy / Two Copies / Three Copies / Five Copies
+                                These options will copy the selected object and replicate one through five rotated copies on
+                                top of the original image.
+
+
+Fill Page
+        This option will copy and replicate the selected object and fill the cutting area with as many copies possible.
+
+
+         In the Replicate menu, you may also access an Advanced Options menu. Here you will have the option to select any
+         desired number of copies to replicate your selected image and the distance between these replicated images,
+         including the ability to select any custom direction. Once the desired number of copies and direction has been
+selected, you may click on the Replicate button at the bottom of the Advanced Options menu to apply the selected attributes.
+
+Object to Path
+         This option allows you to take one object and place it on the path of another object. Once it is on the path, you may
+         make copies and duplicate the object by simply pulling on the control handles.
+
+
+                                           Nesting (paid version only)
+        To minimize the space required to cut a certain design, the Nesting feature can be used. You can choose to use your
+        entire media surface to nest you shapes or create a specific area for them to nest in.
+
+
+
+Use Cut Area
+If you choose to Use Cut Area, your entire media surface can be used to nest shapes.
+
+Convert the selected range into a custom border
+If you would like to nest your shapes within a certain area, first draw that area on your workspace. Next, click on Use Selected
+in the Nesting menu. Nesting will occur within this defined area.
+Select all the shapes you would like to nest. In the Nesting menu, you can adjust the rotations and padding of the shapes to
+be nested. Increasing rotations and/or decreasing padding will yield a tighter nest.
+
+After making any necessary adjustments, click Nest and the shapes will nest together to maximize space. If you have selected
+more shapes than will fit in the nesting area, the software will determine which shapes fit best in the defined area.
+
+
+
+
+                                                             39
+                                                         Modify
+        Overlapping images may be altered in a variety of ways. The Modify menu options provide welding and other
+        advanced options to allow overlapping images to be adjusted.
+
+Within the Modify menu you may select any of the following abilities.
+
+Weld
+       While the Weld option may be found in the Modify menu, there is also a quick access button located along the bottom
+       tool panel of the software screen. Welding will take two or more selected overlapping images and join them together
+       into one single continuous image.
+
+
+
+
+         Non-welded image with overlapping lines                               Welded image with overlapping lines removed
+
+Welding can be particularly useful when cutting so that the cut lines don’t overlap during the cutting process.
+
+Subtract All
+       This option will remove any portion of an image that is in back behind another image.
+
+
+
+
+                   Original Image                         With Subtract All Applied
+
+Divide
+       This option will create individual images from the intersections of up to eight selected images.
+
+
+
+
+                     Original Image                       With Divide Applied
+
+
+
+
+                                                            40
+Subtract
+       This option will remove all overlapping parts of images that are in front of other images, so that only the image located
+       in back will remain with the overlapping parts removed.
+
+
+
+
+                   Original Image                       With Subtract Applied
+
+Intersect
+       This option will leave only the overlapping part, or intersecting part, of the selected images when applied.
+
+
+
+
+                   Original Image                           With Intersect Applied
+
+
+Crop
+       This option will remove all areas that are not shared by at least two shapes when overlapping.
+
+
+
+
+                      Original Image                 With Crop Applied
+
+Compound Paths (Make / Release)
+              These options are the same options as the Compound Paths that were mentioned earlier. This tool will take
+              overlapping embedded images and either, Make them into a compound path or Release the compound path.
+
+Detach Lines
+       When images are filled or have thick lines defined, this option may be used to detach and move the outline to create
+       two separate images; one with just the lines and one with just the filled effects left behind.
+
+
+
+
+                                                             41
+                                                      Offset Options
+        The Offset option may be used to outline cut-line images giving the image a shadowed mat effect underneath it. It
+        may also be used to create contoured inner lines for images.
+
+To apply offset conditions, you will first need to select an image.
+
+
+
+
+                            Original Starting Image
+
+Within the Offset menu you may start by selecting the offset action.
+You may select to either have your offset image have a sharper Corner appearance, or have a softer more bubbly Round
+appearance.
+Though clicking the offset action button provides a starting point, you may fine tune the offset effect to any specified Offset
+Distance with the slider bar, or by typing in a specific measurement.
+
+At any point your desired effect is achieved you may set the properties of the newly created image into place by clicking
+Apply.
+
+
+
+
+                         Offset Image
+
+You may conversely create an internal offset condition.
+This feature is generally better suited for the creation of internal lines for use with sketch pens.
+
+                                                      Tracing Options
+        By using the Trace function, it is possible to make a cut line around an image (extraction of contour).
+
+
+Select Trace Area
+By clicking this button and dragging the area around an image, specify the area to be traced.
+Trace Preview
+Select whether to trace a filled area or a contour.
+Threshold
+Specify the value for creating a cut line based on the original image.
+The higher the value, the more in detail the extraction is conducted.
+Adjust the threshold while checking the preview screen and set the position where you create a cut line.
+Filter
+The High Pass filter is used to detect image edges in detail and extract the traced part inwardly from the outer side.
+Through this process, the contour of an image can be cleared.
+Scale
+The Scale slider controls the smoothness of the pixels of an image. Only when an image has low quality and is highly pixelated
+as seen in the pencil sketch is it necessary to adjust the [Scale] slider.
+Trace Style
+This is used to select a trace type. Once the trace range is determined, click [Trace Style] to execute tracing and make a cut
+line.
+   •Trace: Creates a cut line as per the preview screen.
+   •Trace Outer Edge: Creates the outermost cut line only.
+   •Trace and Detach: Conducts tracing, creates a cut line, and cuts out the image from the background.
+
+                                                               42
+Read and trace image file
+This function creates a cut line by using an image you want to cut. By using the trace function, it is possible to create a cut
+line around an image.
+
+1. On the "File" menu, select "Insert".
+2. Select the image you want to cut and press "OK".
+3. When the image is placed, you may adjust your settings (size and position), if needed.
+4. From "Panel Display", select the "Trace" panel to display the "Trace" settings screen.
+   Click "Select Trace Area" and drag the area around the image to select it.
+   The inside of the image is painted yellow. The part painted yellow is traced, and cut lines are created around it
+
+
+
+
+       <When Trace is selected>                               <When Trace Outer Edge is selected>
+
+
+
+
+                                                              43
+07                Library and Design Store
+Silhouette Studio® has a library function, which allows you to easily save, sort, and refer to downloaded images and images
+created by the user, and Silhouette Design Store from which it is possible to download new contents.
+
+Silhouette Design Store is a website where over 200,000 pieces of high-quality design data that can be used in Silhouette
+cutting machines.
+By simply downloading the desired data, even those who find it difficult to make designs can easily create beautiful artworks.
+
+The Home screen of the software has library and store views. The library can also be viewed by using the upper right panel.
+
+
+
+
+                                                          Library
+In Library, it is possible to access original data created by the user and data purchased from the Design Store.
+
+Viewing
+       Selecting the icon display option displays the images in the library as icons.
+
+
+       Selecting the list display option displays the images in the library as a list.
+       In the list mode, it is possible to sort images by Name, Date, Category, Artist, Type, and Size.
+
+
+
+
+           Library in Icon View mode                                     Library in List View mode
+
+
+
+
+                                                             44
+Accessing Library Content
+By following the steps below, it is possible to access library images.
+
+補1     Click the Library icon below [Design Tool] on the DESIGN tab.
+
+
+
+
+2
+補       By double-clicking the desired image in the Library, open it on the workspace. Or drag the desired image in the
+        Libraryto the workspace (only when the workspace is displayed).
+
+
+
+
+     Clicking [Show/Hide Library] in the workspace displays two screens.
+
+
+Categorizing & Library Management
+As your library continues to grow with additional content, you may find it convenient to customize your library with new
+folders and sort images according to your liking.
+
+As new Untitled Folders are created, you may immediately name your folder to the desired name.
+Once your new folder has been created, you may drag and drop images into the folder. Right-clicking on a folder will allow
+you to create a new sub-folder for that selected folder, delete the folder (along with all contained content), or rename the
+folder.
+In addition to customizing folders, you may also adjust any of your images within the library. Right-clicking on an image will
+allow you to delete the image, re-name the image, sort the images in the current folder, or show/hide the images properties.
+Image properties will provide you with the image’s description (as downloaded from the Design Store) and display any
+associated keywords.
+As images or folders are deleted, they will be moved into the library’s Recycle Bin. You may still restore any of these images
+or folders by dragging them back into your library. However, once you have deleted any content from your Recycle Bin, this
+content will be permanently deleted from your computer.
+
+                                                              45
+                                             Silhouette Design Store
+The Silhouette Design Store provides additional downloadable content from not only Silhouette, but also a variety of
+independent artists and contributing companies.
+The Store is accessible at any time, 24 hours a day, 7 days a week.
+While images may be purchased individually to customize your library experience, subscription options are also available for
+a monthly fee. Further information on subscriptions may be found in the Silhouette Design Store.
+All images are provided with the following benefits:
+
+• You may download images using any major credit card, through download cards, or by using subscription credits
+• Indefinite usage (you do not have to be connected to the Internet to access once purchased)
+• Recoverable (in case of computer crash or replacement)
+• Resizable and customizable to your specifications (using Silhouette Studio® tools discussed in previous sections)
+
+
+Logging into the Store
+Upon accessing the Silhouette Design store, you will be brought to the store’s homepage.
+
+
+
+
+You may sign in, or sign up for an account if you do not already have one created, by clicking on the link in the upper right-
+hand corner noting that “You are not signed in”. To create an account, you will need to provide your name, your email address
+(which will be your login name), and any desired password.
+
+My Account Options
+Once logged into your account, you will find a link in the upper right-hand corner called My Account which will provide you
+with tools to manage your account. You will have the following options:
+
+My Account – This will allow you to alter your email and password.
+My Orders – This will allow you to view a copy of all orders placed.
+Redeem a code – This is where you may enter any download card codes to apply the available balance onto your account.
+Stored Cards – Allows you to manage any credit card information on file used to pay for subscriptions or individual purchases.
+
+
+
+
+                                                            46
+Shopping
+You are free to browse all available Silhouette images without any obligation to purchase. You will find a navigation aide on
+the left-hand side of your shopping window. As categories are selected or as you search for images, you will also find related
+suggestions listed.
+
+               Search
+
+
+
+
+For specific images you are looking for, you may search for specific image names or terms in the upper.
+As you browse through the different themes and releases or make specific searches, once you find an image you would like
+to download, you may either add it to your cart by clicking on the add to cart option.
+
+Below the design is a listing of similar or related shapes you may be interested in, as well.
+
+
+
+
+Note that images that have already been purchased cannot be added to your cart.
+
+Downloading
+         You may continue to browse and add additional images until you are ready to check out. Once you are ready, you
+         may either click on the my cart link in your mini cart preview, or click on the cart icon in the upper right-hand corner
+         of the shopping window.
+
+When you are ready to download, simply click the Checkout button. Please enter the cart subtotal into "Apply Store Credit"
+and press the "Apply Credit" button. If you do not have a balance or your account balance does not cover the total of the
+images you are seeking to purchase, you will be prompted to either provide credit card information.
+
+When the screen changes from the cart screen to the payment screen, you will be asked to log in to your account. The
+purchased design can be downloaded by clicking “Downloads.”
+
+You may then continue to navigate through the Design Store, or close it as desired. Once your images are all downloaded,
+you may then drag them from the recent download section and sort them as desired into any of your library folders.
+Downloaded images will remain in this Recent Downloads folder until sorted.
+
+You will note that while all purchased images are stored in your library, purchased fonts will also be referenced in the library
+in a special “My Fonts” section. You many then either access these fonts purchased through the Design Store by double-
+clicking on these from the library, which will bring you to your workspace with a text cursor ready to place to type, or by
+access your fonts as previously discussed in section 5.
+
+
+
+
+                                                              47
+08                Saving
+       After you have created an image or document layout, you will have a variety of options to save your images.
+
+
+
+Save
+The Save option is the basic saving function to allow you to create a STUDIO file and save to any location on your computer.
+These files may be backed up on any removable memory device.
+Save As
+This option found in the File menu will allow you to name your image as it is saved. It is saved to any specified location on
+your computer and can be backed up to a removable or external memory device as desired.
+Save Selection
+This option found in the File menu will save a STUDIO file of only the actively selected images from your document. It is saved
+to any specified location on your computer and can be backed up to a removable or external memory device as desired.
+Save to Library
+This option found in the File menu will save your file into the Library in Silhouette Studio®. Upon saving images to your Library,
+they will be added to a section labeled User Designs in the Library. These images cannot be navigated to on your computer
+for manually backing them up, so it is highly recommended to also save a copy of any images using the regular Save option.
+
+
+
+
+                                                              48
+09                Cutting/Sketching
+
+                                                           Send
+Once you have all desired images and/or text on your workspace ready to cut or sketch, you may select the Send tab.
+
+
+Material
+In the Material menu, you will be provided with a list of common materials that can be cut with the Silhouette as well as all
+specialty materials offered from Silhouette. Click on a material from the list to select it.
+
+
+
+
+You may add User Defined media types into this list by clicking on the plus sign in the media list, and likewise remove any
+unwanted material types by clicking on the minus sign.
+
+When you select a material type from the list (or create your own), recommended cut settings will appear in the Action panel.
+If you need to adjust these settings for your specific material, you may do so. Your changes will be saved for future projects,
+so it is generally preferable to create custom settings rather than altering existing settings.
+
+
+Action By: Simple
+In Simple Cut Mode, all lines are scheduled to cut at the same time. Cut lines can be turned on or off individually, but cannot
+be sorted to cut in a specific order.
+
+
+
+
+                                                             49
+In Simple Cut Mode, you can adjust the Cut Style of individual lines in your project. When clicking on this option, your
+workspace will immediately emphasize all lines and their selected attributes for easy reference. To change a line’s cut style,
+simply click on the desired image and then select the new desired line style from the list. The following line styles are available:
+No Cut
+This option will turn off the line from being sent to the Silhouette. While you will still be able to see it on your screen, it will
+be suppressed from being cut.
+Cut
+This option ensures the selected line will be cut regardless of where it is placed, whether overlapping or inside a larger image.
+Lines with this attribute will cut even if they are contained within other lines that are defined as “Cut Edge” or “Perforate Edge”
+line types.
+Cut Edge
+This option will cut the outer edge of any overlapping lines and will suppress any lines with the same attribute if they are
+contained inside a larger image. This option may be preferable for the creation of Print & Cut images.
+
+
+Action By: Line Color, Fill Color, or Layer
+You have the option to break up your project into multiple stages. This is especially handy if your project is designed to be cut
+in several colors or with projects that are to be sketched and then cut out. You can schedule cuts by line color, fill color, or by
+layer.
+By Line Color
+        All of the line colors present in your project will be visible in the cut menu. Based on line color, you can turn cut lines
+        on or off, activate or deactivate auto-weld, and arrange a cutting order.
+
+By Fill Color
+        All of the fill colors present in your project will be visible in the cut menu. Based on fill color, you can turn cut lines on
+        or off, activate or deactivate auto-weld, and arrange a cutting order.
+
+By Layer (paid version only)
+        All of the layers present in your project will be visible in the cut menu. Based on the layers you’ve created, you can
+        turn cut lines on or off, activate or deactivate auto-weld, and arrange a cutting order.
+
+Turning cut lines on or off
+You can turn cut lines on or off by checking (or unchecking) the box next to the cut color or layer.
+
+
+
+
+*The theme color is displayed in light mode.
+
+
+
+
+                                                                50
+Turning auto-weld on or off
+You can turn auto-weld on or off by clicking the auto-weld box next to the cut color or layer. With auto-weld activated,
+overlapping shapes of the same color or layer will be welded together.
+
+
+
+
+Arranging cutting order
+To arrange the order that different colors or layers are cut, simply click and drag the desired color or layer to a higher or lower
+in position in the cut order.
+Adding pauses
+Pauses are especially helpful in sketch projects where it is necessary to change pens or blades between colors. To schedule a
+pause after a color or layer is finished, right-click (control-click on a Mac) the color or layer and select “add pause”.
+
+
+
+
+Configuring the cutting conditions
+If you want to manually set the cutting conditions, set the blade depth, speed, force, and passes.
+First, set the speed to slow and the force to low, and if it is not enough, gradually increase the setting.
+Blade Depth
+Though the software and actual Silhouette unit will not know what blade level you are actually using, the recommendation
+will provide you with a visual cue on what blade setting should be used for the intended media based on the blade type for
+your cutting tool model.
+Configure the setting so that the blade slightly protrudes from the medium in the thickness direction.
+Speed
+It is possible to set the cutting speed. To achieve the best results, slower speeds may be recommended for thicker materials
+or designs that are more intricate.
+Force
+Set the force according to the thickness of the medium to be cut. Thicker materials will likely require higher Thickness levels.
+Passes
+This checkbox is used to set the number of times to cut the design. Increase the number of passes when cutting thick or hard
+media.
+Track Enhancing
+This check box notifies the program that you wish to enable the Track Enhancing feature, which will roll your material into the
+Silhouette and back out several times prior to cutting in order to create a track where the rollers are gripping the material in
+order to ensure the material stays on track during the cutting process. This option should only be used if it is already pre-
+selected for your material type or if you are having issues with a specific material type slipping during cutting and causing the
+resulting cuts to be misaligned. This can be used to select the Silhouette Studio® check box.
+The default setting is 20.
+
+                                                               51
+Intelligent Path Technology
+This allows users to prevent the media from shifting while cutting.
+There is tension in the material when cutting media (mainly paper) using the blade.
+If the media to be cut are not fixed firmly, depending on the cutting order, this tension may cause the media to shift or rip thin
+papers. This can be used to select the Silhouette Studio® check box.
+
+
+
+
+Since paper shift is less likely to occur, users can stack and cut multiple sheets of paper or cut thin papers more beautifully
+than normally.
+For example, this function is effective for cutting multiple sheets for the following design.
+
+                                                                 Caution
+    The Intelligent Path Technology function is not guaranteed in all cases.
+
+
+                                                       Additional information
+    In addition, this function is effective when cutting the following data.
+    • When cutting complicated designs
+    • When cutting sharp angles
+    • When the adhesive comes off easily, such as sealing materials
+
+
+Line Segment Overcut
+Once the material type is selected, the Line Segment Overcut option is displayed. Clicking each option can turn it on and off.
+
+
+
+
+Selecting the “Off” option will have all lines cut normally.
+Selecting the “On” option will have all straight corners cut with a slight overcut. This option is beneficial for providing cleaner
+cutting results in the following conditions:
+
+• Cutting thicker/denser material types (such as chipboard)
+• Cutting smaller block fonts or sharp-edged images on various material types
+
+The option will have no effect on rounded edges. It is only effective for images containing sharp edges in order to achieve the
+best cutting results possible under the conditions listed above.
+
+
+
+
+                                                                    52
+Advanced Cut Setting
+The Advanced Send menu offers several options for specialized cutting with your Silhouette.
+
+Feed Options
+The Return to Origin option will simply return the material back to the original starting point after the job is completed. The
+Feed option will continue to feed the material forward beyond the original point of origin.
+Layer Sorting
+The No Sort option will retain your images as originally laid out while the Group Layers by Condition
+will sort your images according to any layers that exist in the document.
+Cut Order Sorting
+This series of options allows you to control the cutting order of your job. The No Sort option will not
+take any special order action and will simply cut your images according to their layout. The
+Maximize Speed option will set the cutting order to cut the job as quickly as possible. The Minimize
+Roller Movement option will cut the job according the least amount of back and forth roller
+movement possible to aid in the cutting more delicate materials where decreased roller movement
+may be beneficial. The checkbox option for Sort Interior Contours First allows you to control whether
+the interiors of images will be cut first (checked), or if the interior is simply cut in line with all other
+portions of the image during the cutting process (un-checked).
+
+
+
+
+                                                              Test cut
+When going to cut a new material type you have not previously cut, whether it be a pre-defined media-type setting or a new
+User Defined media type you are trying to find the correct settings for, it is advisable to perform a Test Cut in order to ensure
+your settings are correct and you will be able to obtain a clean quality cut for your intended job. You can access the Test Cut
+options in the Send menu.
+
+
+
+                Test cut creation                                                 Test cut deletion
+
+ 1     When the cutting condition setting has finished, click the [Generate Test Shape] button to create the test cut shape.
+       *On the medium, it is possible to change the [Test Cut] arrangement. At this point, it is possible to delete a test cut
+        by clicking the [Remove Test Shape] button.
+
+ 2     Click the [SEND TEST] button. The test starts, and a shape consisting of combination of a rectangular and a triangle is
+        drawn.
+
+ 3     If cutting conditions, such as blade depth, force, and speed, cannot be cut properly, change the cutting conditions as
+         required.
+
+The Silhouette will then cut a small square with an embedded triangle so that you may gauge your results and determine if
+any settings need to be adjusted. You may continue to make further test cuts until results are to your satisfaction.
+
+                                                      Additional information
+     Try readjusting the conditions and repeat the test-cutting until you find the optimum cutting conditions for the media you want
+     to use.
+
+
+                                                     Cutting / Sketching
+Once you have selected the correct settings and are ready to send the design to your silhouette device, you will want to
+ensure your material has been loaded properly and that you have selected the correct blade setting for cutting, or that you
+have loaded a pen in the case you are sketching.
+
+
+
+
+                                                                  53
+Performing the Cut
+Once you have selected an appropriate cut setting and set a medium on a Silhouette cutting machine, you are ready to send
+the design to the Silhouette cutting machine. Now clicking the SEND button allows you to start the cutting.
+
+                      Once the cutting has finished, it is possible to unload the cutting mat and material by pressing the
+                      medium ejection button.
+
+
+
+
+                                                          54
+10                  Print & Cut
+Silhouette Devices have the special ability to read printed jobs sent from Silhouette Studio® in order to cut the contour lines
+defined in your workspace as they outline print information.
+
+In other words, you are able to print an image with filled color or effects to your regular home printer and then feed the printed
+sheet into the Silhouette to cut out around the printed image.
+
+                                   Registration Marks (Positional Alignment)
+Silhouette Cutting Machines have an optic scanner for reading marks that can be printed by Silhouette Studio®. These marks
+are called registration marks. These marks will print around the border of your workspace and will be read by the Silhouette’s
+optic scanner prior to cutting so that the Silhouette can triangulate according to where these marks are located and know
+exactly where the cut lines are defined around your printed images.
+
+
+Create registration mark data
+        Print & Cut uses Registration Marks to get an accurate picture of the print Position and cut Position.
+        This section explains the flow from creation of registration mark to printing & cutting when the Silhouette Studio® is
+        used.
+
+ 1     From the Panels menu, select the "Registration Marks", and you will be able to view the "Registration Marks" panel.
+
+ 2     Check the "ON" to enable the registration marks.
+
+ 3     Manually specify the registration mark line thickness, length or margin.
+
+
+
+
+                                                                Caution
+     <How to add registration marks (alignment marks)>
+     • Do not place your design in the shaded area. It may cause registration mark scanning errors.
+
+
+
+
+     • If the registration marks are too small, the scanning may fail.
+     • Arrange the registration marks and then print them with the printer.
+
+
+
+                                                            Print & Cut
+With the registration marks displayed, you are ready to perform Print & Cut jobs. Again, this does not mean that the Silhouette
+will scan and cut around any print information. Rather the Silhouette is using the registration marks to know where your cut
+lines are defined around your printed image.
+
+                                                                   55
+Create design data for printing and cutting
+Your image must have lines around your printed image which are defined to be cut.
+Design the drawing pattern that you want to print and the contour to be cut.
+
+ 1     Create the design to print for printing and cutting.
+
+ 2      Create the contour cut lines to be cut for printing and cutting. It is recommended that the cut design is created on a
+        color different from the print design.
+
+
+
+
+                                                           Printed image                           Cut image
+
+
+Printing design data
+        When your job is ready, you may print it by accessing the Print option.
+
+
+                                                                Caution
+     • Do not change the registration marks or design after printing. The cutting position will shift.
+     ・If any objects are moved and the location of printed or cut information is altered, you will need to re-print your document.
+
+ 1      Create a design.
+
+ 2      Check the [Enable Registration Marks] check box on the Print & Cut panel and specify the registration mark thickness
+        and length.
+
+ 3      Print out the design data.
+
+Cutting the printed medium.
+This section explains how to cut a printed medium by using a Silhouette cutting machine.
+
+ 1     Set a printed medium on a Silhouette machine.
+
+                                                             Supplement
+     For how to set a medium, refer to the User’s Manual for Silhouette cutting machine.
+
+ 2     Send the printed design data to the [SEND] screen.
+
+ 3     The cut line is displayed.
+
+ 4     On the [Cut Settings] panel, select cutting conditions. When a medium to be used is selected, the optimum cutting
+       conditions will be automatically applied.
+
+
+
+                                                                   56
+If you have registration marks on your page in the design screen, your machine will know to detect them when you send your
+job to cut. The Silhouette’s optic scanner will then locate the marks for you. Once all marks are successfully detected, the
+Silhouette will cut the defined lines around your printed image.
+
+As previously noted, Silhouette Studio® allows you to fill any image with fill colors, gradients, and patterns. Though Silhouette
+does offer premade special Print & Cut images that are designed to only have print information inside and a cut edge around
+the outside of the image, literally any image can be turned into a Print & Cut image by using the tools provided in Silhouette
+Studio®.
+
+
+
+
+                                                              57
+11                 PixScan
+
+        The PixScan™ feature requires the use of a PixScan™ mat (PixScan™ mat sold separately).
+
+
+This feature allows for the use of images that are already printed which have not originated from the Silhouette Studio®
+software. The PixScan™ mat provides the ability to cut according to an image’s actual size whether it be to provide a contour
+cut around the image, or to nest images into an oddly shaped material precisely, or to replicate a pattern at its original size.
+
+                                                    Import from Scanner
+        When importing directly from a scanner, you may perform the following steps:
+
+
+
+ 1     Place the intended printed image onto the PixScan™ mat which you wish to cut.
+
+                                                            IMPORTANT
+     Ensure the image is within the mat’s cutting area as shown by the black line border on the mat.
+
+
+
+
+ 2     Click on the PixScan™ Icon in the Silhouette Studio® software.
+
+ 3     Select the Import from Scanner section.
+
+ 4     Place the image on the PixScan™ mat face down onto the scanner.
+
+ 5     Select your scanner from the Source drop-down list and click on the Import PixScan™ Image from Scanner option.
+
+
+                                                            IMPORTANT
+     • If the PixScan™ mat is larger than the scanner, you may scan in two passes.
+     • You will need to ensure that all markings on the mat are captured along with the actual image.
+     • If scanning in multiple passes, you do not need to worry if the scanned images overlap.
+     • The software will knit the images together properly.
+
+
+
+
+                                                                  58
+                                                      Import from Camera
+When importing an image from a camera or camera phone, you may perform the following steps:
+
+ 1     Place the intended printed image onto the PixScan™ mat which you wish to cut.
+
+
+
+
+ 2     Take a picture of the image on the mat with your camera.
+
+                                                                   NOTE
+       For optimal results when photographing the PixScan™ mat, please ensure that:
+     · No zoom is used
+     · Lighting is even
+     · The entire mat is clearly visible in the image
+     · The PixScan mat is flat
+     · The cut media is contained within the black cut border
+
+ 3     Transfer the image to your computer.
+
+ 4     Click on the PixScan™ Icon in the Silhouette Studio® software.
+
+ 5     Select the Import from File section.
+
+ 6     A window will pop up for you to navigate to and select your image.
+
+ 7     Click on Open once your image is selected.
+
+
+
+
+                                                                   NOTE
+     If a calibration profile does not already exist for your model of camera, you will need to calibrate the PixScan™ feature.
+     PixScan™ calibration is only necessary to perform once per camera.
+
+
+
+
+                                                                    59
+                                                    Calibrating your Camera
+The following steps may be performed to create a PixScan™ Camera Calibration profile:
+
+ 1    Click on the PixScan™ Icon
+
+ 2    Select the Camera Calibration section
+
+ 3    Click on the Show Calibration Test Card option
+
+
+
+
+ 4      Go to File > Print and print out the page
+
+                                                                     NOTE
+     It is okay if the entire page is not displayed or some of the dots are cut off.
+
+
+ 5      Take a picture of the printed calibration page from a bird’s-eye view, ensuring that the calibration dots fill the entire
+       image
+
+                                                                     NOTE
+     For optimal results when photographing the calibration image, please ensure that:
+     · No zoom is used                                                 · Lighting is even
+     · The photo is clear and crisp                                    · The calibration image is resting on a flat surface
+     · The camera is parallel and in line with the calibration image   · Only the calibration dots are showing in the photo
+
+
+ 6      Once you have your image saved on your computer, click on the plus (+) icon under the Camera Calibration section
+        of the PixScan™ panel.
+
+
+
+
+                                                                      60
+ 7     A window will pop up for you to navigate to and select your calibration image
+
+ 8     Click on Open once your image is selected
+
+Your PixScan™ calibration is now set up for the camera in use. Again, this process is only necessary any time a new camera
+is in use. You may select a PixScan™ Camera Calibration profile for any previously calibrated camera at any time depending
+on which camera is used to capture your image.
+
+                                              Cutting of PixScan Image
+After loading a PixScan image, create your own cut line.
+
+Creation of a cut line (trace)
+Please see Tracing Options for further information on creating cut lines to associate around your image. You may find it
+preferable to add a small Internal Offset (e.g. 0.2 mm) after tracing in order to avoid white borders on traced PixScan™ images.
+
+ 1    Send the data to the cutting machine.
+
+
+
+
+ 2    Send the data to the cutting machine.
+
+
+
+
+                                                             61
+12               Specialty Tools
+The Specialty Tools Panel can be set up your job to various tools according to media.
+
+                                                    Specialty Tools
+      The Emboss/Deboss is capable of embossing when using the Embossing Mat.
+
+
+       Score & Emboss is a special action that will first lightly score around the edges of an image with a blade, and then will
+       press slightly inside the score lines with an embossing tool. This makes a more dramatic deboss or emboss effect than
+      the embossing tool alone.
+      Print & Emboss lets you print an image and then press down onto the back side of the printed surface with an
+      embossing tool. The printed image is embossed with a raised effect, adding definition to the design.
+
+      Power Engraver allows you to engrave the surface of the material.
+
+
+      The Heat Pen can transfer foil onto media placed under transfer foil.
+
+
+      The Leather Punch can punch holes in leather and synthetic leather.
+
+
+      The Leather Carving Knife can create three-dimensional engravings on the surface of vegetable-tanned leather.
+
+
+      Send to 3D allows you to send your design created by Silhouette Studio to Silhouette 3D.
+
+
+
+Emboss/Deboss
+Embossing/debossing is made possible when using the embossing mat with an embossing tool.
+
+                                  If no special effects from this panel are applied, the Silhouette Cutting Machine will simply
+                                  emboss/deboss the outline of your image. The effects and options found in the
+                                  Emboss/Deboss section provide additional options that may be desirable when using an
+                                  embossing tool.
+
+
+
+
+                                                             62
+Embossing Pattern
+An Effect can be selected to fill in any image with an embossing pattern. It is possible to select a pattern from None, Line,
+Concentric, Cross hatched, and Spiral.
+To apply an embossing Effect, select your image and then click on the desired Effect.
+
+
+
+
+Spacing
+Spacing will control how compact or spread out the applied Effect will appear.
+This increases and decreases the interval between the lines of a pattern. The heart in dark blue shows an interval of 0.004
+inches.
+
+
+
+
+Angle
+This selects the angle at which the selected effect is applied. This changes the angle of a debossing or embossing
+pattern.
+
+
+
+
+                                                            63
+Cancel emboss pattern
+The lines of an emboss pattern can be deleted. Once you are satisfied with the pattern, click the [Cancel Emboss] button.
+Even when the emboss/deboss pattern is canceled, it is possible to add a separate pattern onto an existing pattern. Once the
+emboss/deboss pattern is canceled, it is possible to add another pattern onto an existing pattern.
+
+                                                          Score & Emboss
+The score and emboss processing button is located on the second tab of the [Specialty Tools] panel.
+In score and emboss processing, a shallow cutting line is created with the auto blade, and then the embossing is deepened.
+
+                                                              IMPORTANT
+       This feature is intended for use with Silhouette brand “Score & Emboss Paper”. Silhouette cannot guarantee effective results
+       when using other material types. All further instructions assume the use of Silhouette brand “Score & Emboss Paper”.
+
+
+Selecting the Tool
+Choose either the Fine or Wide Embossing tool according to what you are using.
+                                         Fine Embossing tool is a 1 mm tip and designated by a light blue top.
+                                         Wide Embossing tool is a 3 mm tip and designated by a darker blue top.
+
+Passes
+Select the number of tool passes from 1 to 10.
+Fill
+When the Fill check box is checked, filling is added to the selected object.
+Score and Emboss Lines
+When you select this, red cut lines and blue emboss lines are applied to the selected shape or text.
+
+Tool Holder 1 makes the red cut lines with the auto blade mounted, and Tool Holder 2 makes the blue emboss lines with the
+emboss tool mounted.
+
+
+
+
+                                                                    64
+                                                         Print & Emboss
+The Print & Emboss option is very similar to the Print & Cut option, which uses registration marks to provide proper alignment
+around a print image. Print & Emboss jobs allow you to print an image onto a material’s surface and then press down onto
+the opposite side of the printed surface with an embossing tool. The resulting effect produces a printed image that is
+embossed. The emboss effect can either be around the edge or filled in according the Emboss/Deboss options previously
+selected.
+*This feature is limited to CURIO Series only.
+Print
+Begin by placing your print design on screen and create the desired embossing lines around or within the printed image.
+
+
+
+
+                                                      Additional information
+    If using a Print & Cut image that already has a cut line created around the image and which also has surrounding white space,
+    you can select the image and go to the Modify options to select Intersect. This will have all white space outside of the cut line
+    contour trimmed. If you desire to assign an emboss fill type, you may then right-click Copy, and then right-click Paste In Front.
+    The design can then be selected to apply any emboss fill type for use with the Print & Emboss feature.
+
+You may then go to the Print & Emboss section in the Emboss tool panel and click on the “Print” button under Step 1. This will
+have your image sent to your printer with printed registration marks.
+
+                                                            IMPORTANT
+    Please allow ample time for ink to dry prior to placing it onto the embossing mat. Ink that has not fully dried may transfer an
+    imprint of the image onto the embossing mat surface. While this will not degrade or harm the mat, it may be undesirable.
+    When cutting out registration marks, do not use the emboss mat. Failure to follow this instruction may damage the emboss
+    mat.
+
+
+Cut Registration marks
+Place the printed image face-up on the Electrostatic Protection Sheet.
+Insert an Autoblade to Tool Holder 1. Click on [Cut Registration marks] and cut out the registration marks.
+
+
+
+
+                                                                   65
+Emboss
+Remove the printed page with the cut-out registration marks from your CURIO series.
+Set an unprinted page with its blank side facing up and its upper right corner aligned with the embossing mat.
+Then, set three registration mark sheets below the cut registration marks, and set them so that the black registration sheets
+are visible from the front.
+*The registration mark sheets are accessories for the embossing mat.
+
+
+
+
+                                                          IMPORTANT
+    It is recommended to allow ample time for ink to dry prior to placing it face down onto the embossing mat. Some ink may
+    transfer onto the embossing mat. However, it does not adversely affect the future use of the embossing mat.
+
+Insert the embossing tool to Tool Holder 2 and click the [Emboss] button mentioned in Step 3. The back of the page will be
+indented along the emboss lines so that a raised emboss effect will be visible when the page is viewed from the front.
+
+
+
+                                                     Sketch & Stipple
+When you click the sketch icon in the toolbar located at the upper part of the workspace, it is possible to create a sketch
+design. On the sketch menu, it is possible to adjust the sketch edge, fill type, and fill effect.
+Sketch Fill
+To apply the sketch effect, select an image and click the desired pattern.
+
+
+
+
+Spacing
+Spacing will control how compact or spread out the applied Effect will appear.
+Increase and decrease the grid interval between pattern lines.
+Angle
+The Angle option will control the applied angle of the selected Effect. Change the sketch angle.
+Sketch Edge
+Select a sketch edge pattern.
+Cancel the sketch
+The Spacing and Angle options are dynamic and will automatically adjust when images are resized or adjusted. However, if
+you wish to set these options to be static after they are created to your liking, you may click on the Release Emboss option.
+
+
+
+                                                                66
+                                                            Stipple
+Stippling is the process of marking a material’s surface with numerous small dots to make a pattern. The Silhouette devices
+provides the ability to create stipple points by either converting lines into stipple points, or by converting imported print
+images into stipple patterns.
+
+
+Stipple
+The Stipple section will allow you to convert lines into stipple patterns or to fill images with various stipple patterns.
+Stipple Edge
+To convert lines to stipple points, check the box for Stipple Edge under the Stipple menu.
+Spacing
+You may control the stipple point distance by adjusting the Spacing option.
+Stipple Fill type
+The selected line image will be filled with the desired pattern or shape. Only one Pattern or
+Shape option can be selected at a time. The following settings can be adjusted according to
+your Pattern or Shape selected:
+Grid Spacing
+Zooms the selected stipple Shape in or out.
+Stipple Spacing
+Controls stipple point spacing to either be closer together or spaced farther apart.
+Angle
+Controls the angle of the stipple fill.
+Offset
+Controls how close to or far from the edge of the filled shape the Stipple Fill will appear.
+Stipple Size option
+The Stipple Size option will adjust the display size of the stipple points on your screen. This
+does not control the actual resulting size of the created stipple point. This is for display
+purposes only. When the Print Stipple option is checked, your image can be sent to a printer
+in order to print out an image of the selected stipple settings.
+
+
+Stipple Trace
+The Stipple Trace section will allow you to convert imported raster images (such as JPG, PNG, and other supported bitmaps)
+into stipple patterns.
+Once you have opened an external image you own you may click on the Select Stipple Area button.
+This will allow you to draw a box around the intended area of your imported image in order to create a stipple pattern. This
+selected area once drawn may be adjusted or moved like any other object in the software as you may need to expand or refine
+the Stipple Trace area. The Stipple Trace area selection will provide a preview of the original image with a black-dotted image
+showing how the intended stipple points will be created.
+After selecting all desired Stipple Options (as noted below) and your stipple pattern appears as you would like, you may click
+on the Create Stipple button to have the pattern created.
+
+
+
+
+                                                               67
+Stipple Style
+Various stipple styles and settings can be adjusted to provide altering stipple effects.
+Invert
+The invert checkbox will have the contra-positive image traced.
+Density
+Generally, lighter regions of the drawing will be populated with fewer stipple points and
+darker regions are more densely populated. The darkness of any region is magnified by the
+Density setting which affects the population, or density of stipples rendered in that region.
+Refinement
+Stipples are rendered at the points of a small invisible square grid, the spacing of which is
+defined by “Grid Spacing”. Some Stipple
+Style options allow this to be adjusted so that the stipple points appear at half, third, or
+quarter grid squares, thus higher values provide a more randomized display of stipple points
+which may have a more natural or less blocky appearance.
+Grid Spacing
+Specifies the distance between rows and columns of the square grid upon which the stipple points are positioned. Lower
+values
+provide a finer grid upon which the stipple points may be positioned.
+
+Selecting the Stipple Tool
+Whenever performing a stippling job, you will want to select the Stipple Tool for your material type under the Cut Settings
+panel.
+
+To select the Stipple Tool, select your material type in the Cut Settings panel and then click on the tool type drop-down option.
+You can then scroll down to select the Stipple Tool. Once selected you will have two new tool setting options available.
+
+While the action of Stippling is generally an up/down action, the Stipple Size option here will allow you to create a larger
+stipple point by dropping thes tool and having the stipple point created in a circular motion, thus making the stipple point
+larger. The default setting of 0.00 mm will simply have the stipple point created at the tool’s actual point diameter.
+
+When using the Stipple Tool to stipple metal surface, such as the Silhouette brand Metal Stippling Sheets, you may check the
+Increased Stipple Force box in order to create a harder punched stipple point.
+
+
+
+                                                   Multiple tool use
+The Silhouette CAMEO Series and CURIO2 have two tool holders so that multiple tools can be used simultaneously. This
+means that you are able to perform two different actions during the same job, such as cut, emboss, etch, stipple, and sketch.
+When Silhouette CAMEO Series or CURIO2 is detected, Silhouette Studio® will provide an option in the Send panel to allow
+various line sets to be assigned to the different tool holders.
+When in the Send Panel, you may select your desired object in your workspace and then click on the associated Tool holder
+option you want to use.
+This will assign the selected line to be performed by the desired tool you have placed into the associated tool holder.
+
+
+
+
+When in the Advanced Cut Mode, you can assign your lines to be performed by the desired tool holder by clicking onto the
+associated circle found under the Tool column. This can be performed according to Line Color or Fill Color or, if you are using
+the paid version, you may also set up your job for the various tools according to Layer.
+
+
+
+
+         <Cut by Line Color>                   <Cut by Fill Color>                         <Cut by Layer>
+
+
+
+                                                              68
+Clicking “1” on the left will have the selected row performed by Tool 1 on the left side of the cutting machine, whereas clicking
+“2” on the right will have the selected row performed by Tool 2 on the right side of the cutting machine.
+
+                             If you have more than two tool types you wish to use within the same job, you can right-click to
+                             add a pause in order to stop the Silhouette Cutting Machine between actions and change out
+                             your tool as needed.
+
+
+
+
+                                                              69
+13                Design Edition Plus Features
+
+                                              Appliqué Embroidery
+Silhouette Studio® Designer Edition Plus enables you to import appliqué embroidery files. If your embroidery file has a
+placement stitch layer, you can use it to cut out the appliqué shapes using your Silhouette cutting machine.
+
+To do so, upload your embroidery file to Silhouette Studio®. You can import the following embroidery formats with Designer
+Edition Plus:
+
+PES (Brother, Babylock, Deco, Singer)
+DST (Tajima, Barudan, Toyota)
+EXP (Stellar, Melco)
+JEF (Janome)
+XXX (Singer)
+
+Open your file in the design screen. Delete the extra embroidery shapes so only the placement stitch line remains.
+Send your shape to your Silhouette and cut your shape out of your fabric. Now you have a perfectly cut appliqué.
+
+
+
+
+                                                                                <Cut sending screen>
+
+
+
+
+            <Design screen>
+
+
+
+
+                                                                                  <Actual applique>
+
+
+
+
+                                                           70
+                                       Sketching with Embroidery Files
+You can convert embroidery designs to sketch artwork using Silhouette sketch pens.
+
+Upload your file to Silhouette Studio®. Assign each layer a color. Send the image to your Silhouette with each colored layer
+corresponding to a colored sketch pen.
+
+
+
+
+                                              Advanced Rhinestones
+                            Once you have your shape drawn or have placed the image of your custom rhinestone on the
+                            page, select the image. Then, click the ‘Add Selected Shape to Rhinestone Library’ button. This
+                            will add your shape to a section called ‘User Rhinestones’ underneath the preloaded stock
+                            rhinestones.
+
+                            The rhinestone shape will remain in your library so you can use it for future projects.
+
+
+
+
+Resize Rhinestones to Non-Standard Sizes
+The size of circular rhinestones can be defined in ‘ss’ or in the dimensional units (‘mm’ or ‘inches’) set in your preferences
+settings. The width / height of non-circular rhinestones is defined in the dimensional units (‘mm’ or ‘inches’) set in your
+preferences settings. You can resize your custom rhinestones by clicking on the slider bars under your rhinestone library.
+
+Placing Individual Rhinestones
+To place individual rhinestones in your design, you can select the rhinestone you want and drag and drop it in place. Or you
+can select ‘Single Click’ from the advanced rhinestone menu. Otherwise, there are two options to place rhinestones in your
+design: single and multiple.
+
+                                  Single Click mode provides a rhinestone cursor in the draw area which places the currently
+                                  selected rhinestone from the Rhinestone Library on the page, allowing you to quickly place
+                                  a repeated rhinestone.
+                                  When you are in ‘Multiple Rhinestones’ mode, the Rhinestone Cursor rotates through the
+                                  sequence of Rhinestones defined in your ‘User Rhinestones’ list, allowing sequences of
+                                  different rhinestone types to be quickly placed.
+
+Clicking the Rhinestone Cursor above a rhinestone which has already been placed in the draw area causes that rhinestone to
+be replaced by the new one, positioning the new rhinestone at the same center.
+
+
+
+
+                                                             71
+Placing Rhinestones as Outlines or Fills
+                               You can create outlines or fills using either a single rhinestone style or a multiple rhinestone
+                               pattern.
+
+                               To use a single rhinestone style, you can select a single rhinestone and outline or fill your
+                               design with it. First, select your image. Next, under ‘Rhinestone Mode’ select ‘Single’. Then,
+                               select which rhinestone you are using for your design.
+
+                               There are three adjustment options: Angle, Spacing, and Angle Offset.
+
+                               The following options are available in the drop down ‘Angle menu:
+
+Standard
+Rhinestones are oriented in a uniform direction.
+
+
+
+
+Center
+Rhinestones are oriented to point toward the center of the boundary shape.
+
+
+
+
+Perpendicular
+Rhinestones are oriented perpendicular to the contour upon which they sit.
+
+
+
+
+Spacing
+’Spacing’ adjusts how much space there is between each individual rhinestone.
+
+
+
+
+                                                            72
+Angle Offset
+’Angle Offset’ allows you to adjust the angle at which rhinestones are placed.
+
+
+
+
+          Hearts with no angle offset                Hearts with 45º angle offset
+
+After you have selected your Angle, Spacing, and Angle Offset, click ‘Apply to Edge’.
+
+Fill Options
+There are two options to fill your design.
+Fill Interior Radial
+‘Fill Interior Radial’ positions rhinestones on edge of the path and on concentric contours in the interior.
+
+
+
+
+Fill Interior Linear
+‘Fill Interior Linear’ positions rhinestones in a grid-like formation in the interior.
+
+
+
+
+                                                                 73
+Multiple Rhinestones
+Multiple Rhinestone Mode functions similarly to Single Rhinestone Mode except the outline or fill uses a multiple rhinestone
+pattern.
+
+When in ‘Multiple Rhinestones’ mode, you can make a pattern of rhinestones for your design. To make a pattern, click on the
+rhinestone you want and drag it down to ‘User Rhinestones’. Go back to your rhinestone library and click the next rhinestone
+you want and drag it down next to the first one. You can drag down as many rhinestones as you want to create your pattern.
+Each rhinestone will automatically be placed at the end of the pattern, but by clicking and dragging, you can rearrange them
+to create your desired look.
+
+
+
+
+Total (All Shapes)
+At the bottom of the Advanced Rhinestone menu is a total rhinestone count. It tracks how many rhinestones of each size you
+use in your design.
+
+
+
+
+                                                           74
+14                Business Edition Features
+
+Silhouette Studio® Business Edition has a few helpful tools to aid in the production of large, intricate, or batched projects.
+
+                                                Multi-Cutter Support
+The Silhouette Studio® Business Edition provides multi-cutter support.
+
+This means that when using the Business Edition, you are provided the ability to send cut jobs to multiple Silhouette cutting
+units at the same time as they are hooked up to your computer.
+To utilize the ability to send jobs to multiple Silhouette units hooked up to the same computer, you may simply go to the Send
+panel and select which Silhouette unit you would like to send the job to and then press the Start button.
+
+You can use this feature to cut the same job or different jobs for whichever document tab is selected and actively displayed
+as you opt to start the job.
+
+The option to use multiple Silhouette units also provides the capability in the Business Edition to name your Silhouette units
+within the program. This is so you are able to determine which job is being sent to which unit. To rename a connected
+Silhouette, simply click on the Silhouette Cutting Machine model name in the Send to Silhouette Screen:
+
+
+
+
+Once you click on the model name, you can type in any new desired name for the specific Silhouette unit.
+The name will be retained whenever using the computer that was used to create the name, even if the unit is unplugged and
+then later plugged back in. However, please note that the naming is specific to the computer in question.
+
+The number of Silhouette units that can be simultaneously connected differs depending on the PC specifications and
+environment.
+
+
+                                         Ai/EPS/CDR file compatibility
+The Silhouette Studio® Business Edition provides the ability to open Ai, EPS, and CDR files directly which have been created
+from other major vector imaging software programs (such as Adobe Illustrator® or CorelDraw®).
+To access this feature in the Business Edition, go to the File menu and select Open. If on a PC, you will need to select the file
+type you are seeking to open and select the Ai, EPS, or CDR option.
+
+You may either select to cut by layer and simply enable the desired layers, or opt to cut by line color and either enable the
+“no color” line to be cut or re-color your lines as desired using the Line Color tool.
+
+You may alternately opt to use the Silhouette Connect™ program to cut these files from their native software programs.
+
+
+
+
+                                                              75
+                                      Design View vs. Media Layout View
+Silhouette Studio® Business Edition provides a different view option to enable users to view both the original Design View of
+how images are laid out from a design aspect and a Media Layout View of how lines are processed to actually appear in the
+resulting cut job.
+
+While the traditional “what you see is what you get” Design View can be utilized and jobs processed in this manner when
+using the Business Edition, there is an additional option to change to the Media Layout View in order to maximize efficiency
+of laying out designs to be cut on specialty materials commonly used in business settings.
+
+This side-by-side view capability provides access to further Business Edition features, such as Matrix Copy options, Media
+Layout Nesting, and Tiling.
+
+
+Design View
+Selecting this option will put the software into the traditional single pane view and have objects cut out as they have been
+placed in their original design.
+
+Media Layout View
+        Selecting this option will provide a side-by-side view of your original layout (Design View on the left-hand side of the
+        screen), and a view of the way your job will be processed to cut to your media, or material that is being cut (Media
+        Layout View on the right-hand side of the screen).
+
+
+                                                      Tiling Feature
+         The Silhouette Studio® Business Edition provides an automated Tiling feature.
+         The Tiling feature provides a method by which a larger job can be cut from a series of smaller tiles which are then
+         assembled after the cutting process is completed in order to create the larger scale job.
+
+By example, the Tiling feature will allow the user to design a large scale image of 24 inches height by 24 inches width and cut
+it out in several passes. Even though such a material size cannot be cut in a single pass due to the Silhouette’s maximum
+cutting width limitation of 12 inches, the Tiling feature will automatically segment the job into a series of smaller jobs that
+can be cut out and then assembled to achieve the final 24 inch by 24 inch project.
+
+The Tiling feature is available only when running the Business Edition version in the Media Layout mode.
+
+While the original design can retain its original design layout, the Tiling option will provide a method to re-arrange the design
+to be cut in a series of multiple panels, thus allowing the target project which is larger than the media being used to be
+successfully created in a series of multiple smaller jobs.
+
+The following options are available in the Tiling panel:
+
+Tiling Active
+This option turns the feature on or off as desired. The option can be combined with other Business Edition features, such as
+Media Layout Nesting and Matrix Copy. (NOTE: This the processed design shown in the Media Layout View will only change
+to multiple panels if the image exceeds the available cutting area.)
+
+When Tiling is active, the Design View will display a series of numbered tiles to display how the project will be split up into
+the resulting cut jobs.
+
+These tiles can be controlled by the following further available tools found in the Tiling panel.
+
+
+
+
+                                                              76
+Configure Position and Size
+The options found in this section will allow for the adjustment of the tile sizes and positioning for how the tiles will process
+the resulting cut job.
+Maintain Aspect
+This option will maintain the aspect ratio of the master tile.
+Automatic
+This option will resize the tiles to the size of the project being cut. The tiling division lines will be positioned automatically
+according to the defined media size.
+Custom
+This option will allow you to edit the tiles by dragging the division lines and nodes.
+Regular Grid - This option will resize the tiles to maintain width and height dimensions for the individual tiles, rather than
+sizing them according to the media size specifically.
+Margin
+This option will create an overlap of the resulting cut, which may be useful as overlap in the final resulting job may be required.
+Show Dimensions
+This option toggles the tile sizes on and off.
+All Tiles
+This option will have all tiles selected to be cut.
+Selected Tiles Only
+This option allows for selected tiles only to be cut. Alternately, you may click in the Design View on the tiles to toggle them
+on or off.
+Separation
+This option toggles the tile sizes on and off.
+
+
+
+
+                                                                 77
+                                           Automatic Nesting Preview
+                                The Silhouette Studio® Business Edition provides an Automated Nesting preview mode where
+                                shapes are automatically nested within the Media Layout View to provide efficient usage of
+                                the material being cut, while maintaining the image’s original positioning in the Design View
+                                thus allowing the user to continue editing and refining the design.
+
+                                The Media Layout Nesting option is available only when running the Business Edition version
+                                in the Media Layout mode.
+
+                                While the original design can retain its original design layout, the Media Layout Nesting
+                                option will provide a method to re-arrange the objects to be cut in a manner that makes the
+                                most effective use of your media.
+
+
+
+
+                                The following options are available in the Media Layout Nesting panel:
+Nesting Active
+This option turns the feature on or off as desired. The option can be combined with other Business Edition features, such as
+Tiling and Matrix Copy.
+Interlock Shapes
+This option will nest concave shapes together in more efficient ways and attempt to interlock them to save more space on
+your media.
+Maintain Grain
+When enabled, the nesting feature is constrained to leave images unrotated, or to rotating only by 180 degrees. This may be
+useful when using specialty media that has a grain in order to ensure the grain runs in the desired direction for the resulting
+cut out images.
+Align
+When enabled and images are rotated to an irregular angle in the Design View, the Align option will make the image upright
+to compensate prior to determining the best angle to nest the shape into.
+Whole Words
+This option will keep letters from words together which have been created with the Text tool, instead of nesting each
+individual letter.
+Maintain Groups
+This option will keep any grouped images in their original grouping rather than nesting each individual object.
+Rotations
+The Rotations option will allow or restrict the level of angles you may allow the images to be rotated. For example, a Rotations
+setting of “0” will hold the images exactly in their original angle of rotation whereas a Rotations setting of “2” will allow
+rotations of 0º and 180º turns for the images. A Rotations setting of “4” will allow images to be rotated at angles of 0º, 90º,
+180º, and 270º. As the Rotations setting is raised, the number of possible rotation angles for each image increases. The
+setting is present because while the highest setting may attempt to make the most effective use of space, there may be
+instances where the angle of images is important and it is more desirable to hold images in a certain angle.
+Padding
+This option controls the minimum distance between two adjacent shapes after they have been nested.
+
+
+
+
+                                                             78
+                                                Matrix Copy Feature
+                                  The Silhouette Studio® Business Edition provides a Matrix Copy feature. This feature will
+                                  provide the ability to create matrix of multiple copies of the same project that are replicated
+                                  during the processing of the cut job but which do not actually alter or effect your original
+                                  design.
+
+                                  The Copy feature is available only when running the Business Edition version in the Media
+                                  Layout mode.
+
+                                  While the original design can retain its original design layout, the Copy panel options will
+                                  provide a method to replicate the design to cut multiple copies as desired.
+
+
+
+
+The following options are available in the Copy panel:
+Rows
+This option will provide multiple rows of the job as defined.
+Columns
+This option will provide multiple columns of the job as defined.
+Limit to Media
+Pressing this button will take the specified numbers for the rows and columns entered and remove any which exceed the
+allowed size of your media size.
+Separation
+The Horizontal option determines the horizontal spacing between copies while the Vertical option determines the vertical
+spacing between copies.
+
+
+                                         Automated Weed Line Feature
+        The Silhouette Studio® Business Edition provides a Weed Settings tool. This feature provides the option to create
+        weed lines within open line paths for easier weeding of materials such as vinyl and heat transfer.
+
+
+Options include a surrounding weed line border as well as internal weed lines inside the design’s open spaces (such as within
+letters) to provide an easy method of removing excess material after the completion of the cut job.
+
+The Weed Settings panel can be found when running the Business Edition in the upper right-hand side of the screen.
+
+
+
+
+The following options are available in the Weed Settings panel:
+
+                                                                79
+Show Weed Border
+This option enables an automated weed border to be created around the entire cut job.
+Padding
+The option will adjust the padding dimension to add or remove spacing between the border and the included weed border.
+Weed Lines
+The Weed Lines option provides an option to include internal weed lines, as they may be possible to include for the image.
+All weed borders and internal weed lines are automated and adjusted on the fly as adjustments are made to the placement
+or sizing of objects placed on your workspace. All weed borders and lines are displayed in blue.
+
+
+
+
+                                                          80
+15                Troubleshooting
+If you experience problems, a list of common trouble-shooting tips and further support information may be found below.
+
+                                          Common Troubleshooting Tips
+https://silhouetteamerica.freshdesk.com/support/home
+
+
+                                                         Calibration
+Calibration of the tool is only required for adjustment of the cutting alignment as it relates to Print & Cut jobs and the
+alignment of cuts as they relate to printed information. This should only be performed if you specifically experience concerns
+with your cut lines not aligning with the contour of printed images during Print & Cut jobs that use registration marks. These
+options may be found by right-clicking the name of the device you connect in the Send tab and selecting Calibration.
+
+For this operation, it is recommended to use a sketch pen in order to more clearly view the results and make adjustments
+accordingly.
+
+To start, you will first need to select to Print the Calibration Test Page in order to print the test page to your home printer. Do
+not make any adjustments to the Calibration Test Page on your computer screen. Once printed, you will need to place the
+printed sheet onto your cutting mat as displayed on the screen.
+
+             Once loaded, use the arrow buttons on the screen to align your blade so it is pointing to the first cross mark in
+             the area that is represented in green on your computer screen, or in other words, the upper left corner of the first
+             mark.
+
+Once the blade is in position, click on the Calibrate option. This will engage the Silhouette to attempt to read the mark and
+sketch/cut along the cross lines accordingly.
+
+If either line is off, you will want to make adjustments according to the measurement of exactly how far above or below/how
+far to the left or right the resulting sketch or cut line was performed. To do this, measure the distance between the original
+printed mark and the actual performed mark.
+
+If the performed horizontal mark is above or below the printed mark, you will need to adjust the vertical slider bar on screen
+according to the precise measurement observed between the printed and actual marks.
+
+If the performed vertical mark is above or below the printed mark, you will need to adjust the horizontal slider bar on screen
+according to the precise measurement observed between the printed and actual marks.
+
+               You may then repeat this action as needed by again using the arrow buttons on screen to align with the green
+               area as noted on screen with the next cross mark, click the Calibrate button, then observe results and continue
+               to make corrections as needed until the actual marks performed align with the printed marks.
+
+
+
+
+Distance Adjustment tool can be found by right-clicking anywhere in the Send panel and selecting Distance Adjustment. This
+should only be used if noted that the measurement of your image noted on screen differs from the actual exact measured
+size. Necessary adjustments should be exceptionally rare.
+
+
+
+
+To use this tool, select to Print the Calibration Test Page to your home printer and place the printed sheet onto your cutting
+mat as displayed on the screen. You will need to select the Load w/ Carrier option on the unit when using the Silhouette SD
+
+                                                               81
+model or Load Cutting Mat option when using the Cameo model. Once loaded, click on the option to Cut the Distance
+Adjustment Test Lines.
+
+There will be two lines cut at positions 1 and 2 as labeled on your page. You will then need to measure the exact distance
+between the two lines and adjust the horizontal slider bar for under the Distance Adjustment section to match the exact
+measurement made. Once the measurement has been adjusted, the distance correction will be in effect. You may close the
+Calibration screen and continue to cut as desired. Additional test results are not necessary as further resulting test cuts will
+yield the same results on the test page and fall in line with the new adjusted number. You should only perform this test once.
+
+
+                                    Further Support Contact Information
+Further support information may be obtained through the following sources:
+Web: www.silhouetteamerica.com
+Email: support@silhouetteamerica.com
+
+
+
+
+                                                             82
+Specifications are subject to change without notice.
+
+       Silhouette Studio 5.0 User's Manual
+            MANUAL NO. SS-UM-101
+          December 1,2024 1st edition-01
+           www.silhouetteamerica.com
+          ©2024 Silhouette America, Inc.
+        618 N 2000 W Lindon, UT 84042
+
+
+
+
+                       83
+84
+

@@ -456,6 +456,20 @@ pub fn page(ui: &mut Ui, editor: &mut Editor, settings: &mut Settings, mat: &mut
             new_page = Some(("Page Size", Page { width_mm: w, height_mm: h, margin_mm: m, media, ..page.clone() }));
         }
     }
+    let is_landscape = page.width_mm > page.height_mm;
+    ui.horizontal(|ui| {
+        ui.label("Orientation");
+        if ui.selectable_label(!is_landscape, "Portrait").clicked() && is_landscape {
+            let mut p = page.clone();
+            std::mem::swap(&mut p.width_mm, &mut p.height_mm);
+            new_page = Some(("Page Orientation", p));
+        }
+        if ui.selectable_label(is_landscape, "Landscape").clicked() && !is_landscape {
+            let mut p = page.clone();
+            std::mem::swap(&mut p.width_mm, &mut p.height_mm);
+            new_page = Some(("Page Orientation", p));
+        }
+    });
     let mut border = page.show_cut_border;
     if ui.checkbox(&mut border, "Show cut border").changed() {
         new_page = Some(("Cut Border", Page { show_cut_border: border, ..page.clone() }));

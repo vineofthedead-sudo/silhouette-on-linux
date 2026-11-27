@@ -9,6 +9,7 @@ pub mod fit;
 pub mod flatten;
 pub mod offset;
 pub mod ops;
+pub mod tools;
 pub mod triangulate;
 
 pub use kurbo::{self, Affine, BezPath, PathEl, PathSeg, Point, Rect, Shape, Vec2};
