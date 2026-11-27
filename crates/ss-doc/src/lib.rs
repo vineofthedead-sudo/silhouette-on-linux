@@ -7,7 +7,9 @@
 pub mod editor;
 pub mod history;
 pub mod model;
+pub mod tools;
 
 pub use editor::{Align, Editor, EditError};
 pub use history::History;
 pub use model::*;
+pub use tools::{CuttingMat, Tool};

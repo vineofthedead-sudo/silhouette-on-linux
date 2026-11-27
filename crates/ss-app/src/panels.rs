@@ -2,7 +2,7 @@
 
 use egui::{Color32, DragValue, Ui};
 use ss_config::{Settings, Units};
-use ss_doc::{CutAction, Editor, Layer, LayerId, ObjectKind, Page, RegMarks, Rgba};
+use ss_doc::{CutAction, CuttingMat, Editor, Layer, LayerId, ObjectKind, Page, RegMarks, Rgba};
 use ss_geom::{Affine, Rect, Vec2};
 
 use crate::app::{Action, units};
@@ -406,7 +406,7 @@ pub struct PageChange {
     pub settings: bool,
 }
 
-pub fn page(ui: &mut Ui, editor: &mut Editor, settings: &mut Settings, actions: &mut Vec<Action>, status: &mut String) -> PageChange {
+pub fn page(ui: &mut Ui, editor: &mut Editor, settings: &mut Settings, mat: &mut CuttingMat, actions: &mut Vec<Action>, status: &mut String) -> PageChange {
     let mut change = PageChange::default();
     let (f, unit) = units(settings.units);
     let decimals = if settings.units == Units::Inch { 3 } else { 1 };
@@ -414,6 +414,13 @@ pub fn page(ui: &mut Ui, editor: &mut Editor, settings: &mut Settings, actions: 
     let page = editor.doc.page.clone();
     let mut new_page: Option<(&str, Page)> = None;
 
+    ui.label("Cutting Mat");
+    egui::ComboBox::from_id_salt("cutting-mat").selected_text(mat.label()).show_ui(ui, |ui| {
+        for m in CuttingMat::ALL {
+            ui.selectable_value(mat, m, m.label());
+        }
+    });
+    ui.weak("Mat display is session-only; media size is independent.");
     ui.heading("Media");
     let label = MEDIA_PRESETS.iter().find(|(k, _)| page.media.eq_ignore_ascii_case(k)).map_or("Custom", |(_, l)| *l);
     egui::ComboBox::from_id_salt("media").selected_text(label).width(200.0).show_ui(ui, |ui| {
@@ -423,6 +430,7 @@ pub fn page(ui: &mut Ui, editor: &mut Editor, settings: &mut Settings, actions: 
             {
                 p.margin_mm = page.margin_mm;
                 p.show_cut_border = page.show_cut_border;
+                p.registration = page.registration;
                 new_page = Some(("Media Size", p));
             }
         }

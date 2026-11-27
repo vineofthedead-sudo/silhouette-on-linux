@@ -13,6 +13,8 @@ use ss_geom::flatten::{Polyline, flatten};
 use ss_geom::{Affine, BezPath, Point, Rect, Shape as _, Vec2};
 
 use crate::app::Action;
+pub use ss_doc::Tool;
+use ss_doc::CuttingMat;
 
 const RENDER_TOLERANCE: f64 = 0.02;
 const HANDLE_HALF: f32 = 4.0;
@@ -29,54 +31,18 @@ const MAX_TEXTURE_SIDE: u32 = 4096;
 /// Scale handles as fractions of the selection box, clockwise from the top-left corner.
 const HANDLES: [(f64, f64); 8] = [(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.0, 0.5), (1.0, 1.0), (0.5, 1.0), (0.0, 1.0), (0.0, 0.5)];
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Tool {
-    Select,
-    Rectangle,
-    Ellipse,
-    Line,
-    Polyline,
-    Freehand,
-    Text,
-}
-
-impl Tool {
-    pub const ALL: [Tool; 7] = [Tool::Select, Tool::Rectangle, Tool::Ellipse, Tool::Line, Tool::Polyline, Tool::Freehand, Tool::Text];
-
-    pub fn label(self) -> &'static str {
-        match self {
-            Tool::Select => "Select",
-            Tool::Rectangle => "Rectangle",
-            Tool::Ellipse => "Ellipse",
-            Tool::Line => "Line",
-            Tool::Polyline => "Polyline",
-            Tool::Freehand => "Freehand",
-            Tool::Text => "Text",
-        }
-    }
-
-    pub fn key(self) -> Key {
-        match self {
-            Tool::Select => Key::V,
-            Tool::Rectangle => Key::R,
-            Tool::Ellipse => Key::E,
-            Tool::Line => Key::L,
-            Tool::Polyline => Key::P,
-            Tool::Freehand => Key::F,
-            Tool::Text => Key::T,
-        }
-    }
-
-    pub fn hint(self) -> &'static str {
-        match self {
-            Tool::Select => "Click to select, Shift-click to add, drag to move, drag handles to scale or rotate",
-            Tool::Rectangle => "Drag to draw a rectangle; Shift for a square",
-            Tool::Ellipse => "Drag to draw an ellipse; Shift for a circle",
-            Tool::Line => "Drag to draw a line; Shift snaps to 45°",
-            Tool::Polyline => "Click to add points; click the first point to close, double-click or Enter to finish",
-            Tool::Freehand => "Drag to draw; end near the start to close the shape",
-            Tool::Text => "Click where the top-left corner of the text should go",
-        }
+pub fn tool_key(tool: Tool) -> Key {
+    match tool {
+        Tool::Select => Key::V,
+        Tool::EditPoints => Key::A,
+        Tool::Rectangle => Key::R,
+        Tool::Ellipse => Key::E,
+        Tool::Line => Key::L,
+        Tool::Polyline => Key::P,
+        Tool::Freehand => Key::F,
+        Tool::Text => Key::T,
+        Tool::Knife => Key::K,
+        Tool::Eraser => Key::X,
     }
 }
 
@@ -141,11 +107,14 @@ enum Drag {
     Rotate { center: Point, start_angle: f64 },
     Create { start: Point },
     Freehand,
+    Knife { start: Point },
+    Eraser,
 }
 
 pub struct Canvas {
     pub view: View,
-    pub tool: Tool,
+    tool: Tool,
+    pub mat: CuttingMat,
     pending_fit: Option<Rect>,
     last_rect: egui::Rect,
     drag: Drag,
@@ -166,6 +135,7 @@ impl Default for Canvas {
         Self {
             view: View::default(),
             tool: Tool::Select,
+            mat: CuttingMat::default(),
             pending_fit: None,
             last_rect: egui::Rect::NOTHING,
             drag: Drag::None,
@@ -276,6 +246,17 @@ pub fn color32(c: ss_doc::Rgba) -> Color32 {
 }
 
 impl Canvas {
+    pub fn tool(&self) -> Tool {
+        self.tool
+    }
+
+    pub fn set_tool(&mut self, tool: Tool) {
+        if self.tool != tool {
+            self.cancel_interaction();
+            self.tool = tool;
+        }
+    }
+
     pub fn fit_to(&mut self, r: Rect) {
         self.pending_fit = Some(r);
     }
@@ -481,6 +462,18 @@ impl Canvas {
             let press_doc = press.map(|p| self.view.to_doc(origin, p));
             match self.tool {
                 Tool::Select => self.select_tool(&resp, editor, origin, mods, press, press_doc, pointer_doc, settings, status),
+                Tool::EditPoints => {
+                    if (resp.clicked() || resp.drag_started_by(PointerButton::Primary))
+                        && let Some(p) = press_doc.or(pointer_doc)
+                    {
+                        if let Some(id) = self.pick(editor, p, PICK_PX / f64::from(self.view.zoom)) {
+                            editor.select_only(id);
+                        } else {
+                            editor.selection.clear();
+                        }
+                        *status = "Edit Points: endpoint inspection only; point editing is not implemented".into();
+                    }
+                }
                 Tool::Rectangle | Tool::Ellipse | Tool::Line => {
                     self.shape_tool(&resp, editor, mods, press_doc, pointer_doc, settings, layer);
                 }
@@ -494,11 +487,36 @@ impl Canvas {
                         actions.push(Action::NewText(p.x, p.y));
                     }
                 }
+                Tool::Knife | Tool::Eraser => self.preview_tool(&resp, press_doc, pointer_doc, status),
             }
         }
 
         self.paint(&painter, rect, origin, editor, settings);
         resp.context_menu(|ui| context_menu(ui, editor, actions));
+    }
+
+    fn preview_tool(&mut self, resp: &egui::Response, press: Option<Point>, pointer: Option<Point>, status: &mut String) {
+        if resp.drag_started_by(PointerButton::Primary)
+            && let Some(p) = press
+        {
+            self.current = p;
+            self.points = vec![p];
+            self.drag = if self.tool == Tool::Knife { Drag::Knife { start: p } } else { Drag::Eraser };
+        }
+        if resp.dragged_by(PointerButton::Primary)
+            && let Some(p) = pointer
+        {
+            self.current = p;
+            if matches!(self.drag, Drag::Eraser)
+                && self.points.last().is_none_or(|last| last.distance(p) * f64::from(self.view.zoom) >= 2.0)
+            {
+                self.points.push(p);
+            }
+        }
+        if resp.drag_stopped_by(PointerButton::Primary) || resp.clicked() {
+            *status = format!("{} preview only: geometry is not implemented; document unchanged", self.tool.label());
+            self.cancel_interaction();
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -796,6 +814,14 @@ impl Canvas {
         painter.rect_filled(rect, 0.0, if dark { Color32::from_gray(38) } else { Color32::from_gray(200) });
 
         let page = &editor.doc.page;
+        if let Some((w, h)) = self.mat.size_mm() {
+            let mat = egui::Rect::from_min_max(
+                v.to_screen(origin, Point::new(-8.0, -20.0)),
+                v.to_screen(origin, Point::new(w + 8.0, h + 8.0)),
+            );
+            painter.rect_filled(mat, 3.0, Color32::from_gray(145));
+            painter.rect_stroke(mat, 3.0, Stroke::new(1.0, Color32::from_gray(100)), StrokeKind::Inside);
+        }
         let pr = egui::Rect::from_min_max(v.to_screen(origin, Point::ZERO), v.to_screen(origin, Point::new(page.width_mm, page.height_mm)));
         painter.rect_filled(pr.translate(vec2(3.0, 3.0)), 0.0, Color32::from_black_alpha(70));
         painter.rect_filled(pr, 0.0, Color32::WHITE);
@@ -919,6 +945,24 @@ impl Canvas {
         painter.extend(shapes);
 
         let sel_stroke = Stroke::new(1.0, SELECTION_COLOR);
+        if self.tool == Tool::EditPoints {
+            for o in editor.doc.visible_objects().filter(|o| editor.selection.contains(&o.id)) {
+                for path in o.page_paths() {
+                    for el in path.elements() {
+                        let endpoint = match *el {
+                            ss_geom::kurbo::PathEl::MoveTo(p) | ss_geom::kurbo::PathEl::LineTo(p)
+                            | ss_geom::kurbo::PathEl::QuadTo(_, p) | ss_geom::kurbo::PathEl::CurveTo(_, _, p) => Some(p),
+                            ss_geom::kurbo::PathEl::ClosePath => None,
+                        };
+                        if let Some(p) = endpoint {
+                            let node = egui::Rect::from_center_size(v.to_screen(origin, p), vec2(6.0, 6.0));
+                            painter.rect_filled(node, 0.0, Color32::WHITE);
+                            painter.rect_stroke(node, 0.0, sel_stroke, StrokeKind::Inside);
+                        }
+                    }
+                }
+            }
+        }
         if self.tool == Tool::Select
             && let Some(b) = self.bounds_of(&editor.selection).map(|b| transform_rect(self.preview, b))
         {
@@ -953,6 +997,13 @@ impl Canvas {
             }
             Drag::Freehand => {
                 painter.add(Shape::line(self.screen_points(origin, &self.points, Affine::IDENTITY), sel_stroke));
+            }
+            Drag::Knife { start } => {
+                painter.line_segment([v.to_screen(origin, start), v.to_screen(origin, self.current)], Stroke::new(2.0, Color32::RED));
+            }
+            Drag::Eraser => {
+                painter.add(Shape::line(self.screen_points(origin, &self.points, Affine::IDENTITY), Stroke::new(10.0, Color32::from_rgba_unmultiplied(230, 80, 80, 100))));
+                painter.circle_stroke(v.to_screen(origin, self.current), 5.0, Stroke::new(1.0, Color32::RED));
             }
             _ => {}
         }

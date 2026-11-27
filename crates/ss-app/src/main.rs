@@ -3,6 +3,9 @@
 mod app;
 mod canvas;
 mod panels;
+mod mock_send;
+// Retain the legacy sender for later hardware work; the V5 dock is mock-only.
+#[allow(dead_code)]
 mod send;
 
 use std::path::PathBuf;

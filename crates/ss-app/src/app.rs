@@ -8,9 +8,9 @@ use ss_doc::{Align, CutAction, Document, Editor, ImageData, LayerId, Object, Obj
 use ss_geom::{Affine, Point, Vec2};
 use ss_geom::offset::Join;
 
-use crate::canvas::{Canvas, Tool};
+use crate::canvas::{Canvas, Tool, tool_key};
 use crate::panels;
-use crate::send::SendPanel;
+use crate::mock_send::MockSendPanel;
 
 const OPEN_EXTENSIONS: &[&str] = &["studio3", "studio", "svg", "svgz", "dxf", "craft", "ssrs"];
 const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg"];
@@ -72,14 +72,6 @@ pub enum Action {
     About,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Tab {
-    Properties,
-    Layers,
-    Page,
-    Send,
-}
-
 struct OffsetDialog {
     distance: f64,
     join: Join,
@@ -99,9 +91,8 @@ pub struct StudioApp {
     editor: Editor,
     file: Option<PathBuf>,
     canvas: Canvas,
-    send: SendPanel,
+    send: MockSendPanel,
     active_layer: LayerId,
-    tab: Tab,
     status: String,
     clipboard: Vec<Object>,
     /// An action waiting for the "save changes?" answer.
@@ -173,8 +164,7 @@ impl StudioApp {
             settings,
             file: None,
             canvas: Canvas::default(),
-            send: SendPanel::default(),
-            tab: Tab::Properties,
+            send: MockSendPanel::default(),
             status,
             clipboard: Vec::new(),
             confirm: None,
@@ -634,8 +624,7 @@ impl StudioApp {
                 }
             }
             Action::SetTool(t) => {
-                self.canvas.cancel_interaction();
-                self.canvas.tool = t;
+                self.canvas.set_tool(t);
             }
             Action::About => self.about = true,
         }
@@ -655,7 +644,7 @@ impl StudioApp {
                 return;
             }
             for t in Tool::ALL {
-                if i.key_pressed(t.key()) {
+                if i.key_pressed(tool_key(t)) {
                     actions.push(Action::SetTool(t));
                 }
             }
@@ -970,7 +959,7 @@ impl StudioApp {
                 ui.add(egui::Label::new(&self.status).truncate());
             },
             |ui| {
-                ui.weak(self.canvas.tool.hint());
+                ui.weak(self.canvas.tool().hint());
             },
         );
     }
@@ -1015,46 +1004,39 @@ impl eframe::App for StudioApp {
         }
         let mut actions = Vec::new();
         self.keyboard(&ctx, &mut actions);
-        if let Some(overlay) = self.send.poll(&ctx, &mut self.status) {
-            self.canvas.overlay = overlay;
-        }
-
         egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui, &mut actions));
         egui::Panel::bottom("status").show(ui, |ui| self.status_bar(ui));
         egui::Panel::left("tools").resizable(false).exact_size(96.0).show(ui, |ui| {
             ui.add_space(4.0);
             for t in Tool::ALL {
-                let r = ui.add_sized([84.0, 26.0], egui::Button::selectable(self.canvas.tool == t, t.label()));
-                if r.on_hover_text(format!("{} ({:?})", t.hint(), t.key())).clicked() {
+                let r = ui.add_sized([84.0, 26.0], egui::Button::selectable(self.canvas.tool() == t, t.label()));
+                if r.on_hover_text(format!("{} ({:?})", t.hint(), tool_key(t))).clicked() {
                     actions.push(Action::SetTool(t));
                 }
             }
         });
         egui::Panel::right("side").default_size(300.0).min_size(240.0).show(ui, |ui| {
             ui.add_space(4.0);
-            ui.horizontal(|ui| {
-                ui.selectable_value(&mut self.tab, Tab::Properties, "Properties");
-                ui.selectable_value(&mut self.tab, Tab::Layers, "Layers");
-                ui.selectable_value(&mut self.tab, Tab::Page, "Page");
-                ui.selectable_value(&mut self.tab, Tab::Send, "Send");
-            });
-            ui.separator();
-            egui::ScrollArea::vertical().show(ui, |ui| match self.tab {
-                Tab::Properties => {
-                    let b = self.canvas.bounds_of(&self.editor.selection);
-                    panels::properties(ui, &mut self.editor, b, self.settings.units, &mut actions, &mut self.status);
-                }
-                Tab::Layers => panels::layers(ui, &mut self.editor, &mut self.active_layer),
-                Tab::Page => {
-                    let change = panels::page(ui, &mut self.editor, &mut self.settings, &mut actions, &mut self.status);
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                egui::CollapsingHeader::new("Page Setup").default_open(true).show(ui, |ui| {
+                    let change = panels::page(ui, &mut self.editor, &mut self.settings, &mut self.canvas.mat, &mut actions, &mut self.status);
                     if change.settings {
                         self.save_settings();
                     }
                     if change.page {
                         self.canvas.fit_to(self.editor.doc.page.rect());
                     }
-                }
-                Tab::Send => self.send.ui(ui, &self.editor, &mut self.status),
+                });
+                egui::CollapsingHeader::new("Send").default_open(true).show(ui, |ui| {
+                    self.send.ui(ui, &self.editor);
+                });
+                egui::CollapsingHeader::new("Properties").show(ui, |ui| {
+                    let b = self.canvas.bounds_of(&self.editor.selection);
+                    panels::properties(ui, &mut self.editor, b, self.settings.units, &mut actions, &mut self.status);
+                });
+                egui::CollapsingHeader::new("Layers").show(ui, |ui| {
+                    panels::layers(ui, &mut self.editor, &mut self.active_layer);
+                });
             });
         });
         egui::CentralPanel::no_frame().show(ui, |ui| {
