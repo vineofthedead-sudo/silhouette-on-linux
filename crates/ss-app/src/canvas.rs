@@ -7,9 +7,11 @@ use std::sync::Arc;
 
 use egui::{Color32, Key, PointerButton, Pos2, Sense, Shape, Stroke, StrokeKind, pos2, vec2};
 use ss_config::Settings;
-use ss_doc::{CutAction, Editor, ImageData, LayerId, Object, ObjectId, ObjectKind, RegMarks, ToolGesture, ToolState};
+use ss_doc::{CutAction, Document, Editor, ImageData, LayerId, Object, ObjectId, ObjectKind, RegMarks, ToolGesture, ToolState};
 use ss_geom::fit::{FitOptions, fit_contour};
 use ss_geom::flatten::{Polyline, flatten};
+use ss_geom::nodes::{HandleSide, NodeId, NodePath, Pick};
+use ss_geom::tools::{self as geom_tools, BrushShape};
 use ss_geom::{Affine, BezPath, Point, Rect, Shape as _, Vec2};
 
 use crate::app::Action;
@@ -20,7 +22,7 @@ const RENDER_TOLERANCE: f64 = 0.02;
 const HANDLE_HALF: f32 = 4.0;
 const ROTATE_OFFSET: f32 = 22.0;
 const PICK_PX: f64 = 5.0;
-const ERASER_RADIUS_MM: f64 = 2.5;
+pub const DEFAULT_ERASER_RADIUS_MM: f64 = 2.5;
 const MIN_ZOOM: f32 = 0.02;
 const MAX_ZOOM: f32 = 400.0;
 /// Points per mm at 100 % (96 dpi).
@@ -110,6 +112,18 @@ enum Drag {
     Freehand,
 }
 
+/// A point or handle being dragged with Edit Points. The document is edited live and the whole
+/// drag is recorded as one undo step on release.
+struct NodeEdit {
+    id: ObjectId,
+    pick: Pick,
+    nodes: NodePath,
+    inverse: Affine,
+    grab: Vec2,
+    before: Document,
+    moved: bool,
+}
+
 pub struct Canvas {
     pub view: View,
     pub mat: CuttingMat,
@@ -126,6 +140,14 @@ pub struct Canvas {
     pub overlay: Vec<Vec<Point>>,
     /// Uploaded image textures by content fingerprint; `None` when the image could not be decoded.
     textures: HashMap<u64, Option<egui::TextureHandle>>,
+    /// Eraser brush half-size in mm and shape; session-only tool options.
+    pub eraser_radius_mm: f64,
+    pub eraser_shape: BrushShape,
+    /// Edit Points: the selected node of the single selected path.
+    selected_node: Option<(ObjectId, NodeId)>,
+    node_drag: Option<NodeEdit>,
+    /// Auto-Trace preview contours in page mm, drawn over the design.
+    pub trace_preview: Vec<Vec<Point>>,
 }
 
 impl Default for Canvas {
@@ -143,6 +165,11 @@ impl Default for Canvas {
             cursor_mm: None,
             overlay: Vec::new(),
             textures: HashMap::new(),
+            eraser_radius_mm: DEFAULT_ERASER_RADIUS_MM,
+            eraser_shape: BrushShape::Round,
+            selected_node: None,
+            node_drag: None,
+            trace_preview: Vec::new(),
         }
     }
 }
@@ -238,6 +265,16 @@ fn regmark_rects(m: &RegMarks, page: &ss_doc::Page) -> [Rect; 5] {
     ]
 }
 
+/// The Knife cut for a finished or in-progress drag: a straight line (Shift snaps it to 45°), or
+/// the freehand path with Ctrl held.
+fn knife_cut_points(gesture: &ToolGesture, mods: egui::Modifiers) -> Vec<Point> {
+    if mods.ctrl {
+        return gesture.points.clone();
+    }
+    let end = if mods.shift { geom_tools::snap_angle(gesture.start, gesture.current) } else { gesture.current };
+    vec![gesture.start, end]
+}
+
 pub fn color32(c: ss_doc::Rgba) -> Color32 {
     Color32::from_rgba_unmultiplied(c.r, c.g, c.b, c.a)
 }
@@ -264,6 +301,44 @@ impl Canvas {
         self.drag = Drag::None;
         self.preview = Affine::IDENTITY;
         self.points.clear();
+        self.node_drag = None;
+    }
+
+    /// Abandons a point drag in progress and restores the document to how it was before it began.
+    pub fn abort_node_drag(&mut self, editor: &mut Editor) {
+        if let Some(edit) = self.node_drag.take()
+            && edit.moved
+        {
+            editor.doc = edit.before;
+        }
+    }
+
+    /// The selected node if it still exists and its path is still the only selection.
+    fn valid_node(&self, editor: &Editor) -> Option<(ObjectId, NodeId)> {
+        let (id, node) = self.selected_node?;
+        let (sole, _) = Self::sole_path(editor)?;
+        (sole == id && editor.path_nodes(id)?.node(node).is_some()).then_some((id, node))
+    }
+
+    /// Deletes the selected Edit Points node. Returns whether a node was selected (even if it
+    /// could not be deleted), so the caller does not delete the whole object instead.
+    pub fn delete_selected_node(&mut self, editor: &mut Editor, status: &mut String) -> bool {
+        let Some((id, node)) = self.valid_node(editor) else { return false };
+        match editor.delete_path_node(id, node) {
+            Ok(()) => {
+                self.selected_node = None;
+                *status = "Deleted point".into();
+            }
+            Err(e) => *status = e.to_string(),
+        }
+        true
+    }
+
+    /// The single selected, ungrouped path and its transform.
+    fn sole_path(editor: &Editor) -> Option<(ObjectId, Affine)> {
+        let [id] = editor.selection.as_slice() else { return None };
+        let o = editor.doc.find(*id)?;
+        (matches!(o.kind, ObjectKind::Path { .. }) && !o.locked && o.transform.determinant().abs() > 1e-12).then_some((*id, o.transform))
     }
 
     /// Union of the cached bounds of `ids` (fast, no re-flattening).
@@ -438,6 +513,7 @@ impl Canvas {
                 if matches!(self.drag, Drag::None) && self.points.is_empty() {
                     editor.selection.clear();
                 }
+                self.abort_node_drag(editor);
                 self.cancel_interaction();
                 tool_state.cancel();
             }
@@ -476,7 +552,7 @@ impl Canvas {
                 && let Some(p) = pointer_doc
             {
                 if tool == Tool::EditPoints {
-                    actions.push(Action::SetTool(Tool::Select));
+                    // Handled by the Edit Points tool: delete a point or leave the mode.
                 } else if let Some(id) = self.pick(editor, p, PICK_PX / f64::from(self.view.zoom))
                     && matches!(editor.doc.find(id).map(|o| &o.kind), Some(ObjectKind::Path { .. }))
                 {
@@ -487,23 +563,7 @@ impl Canvas {
 
             match tool {
                 Tool::Select => self.select_tool(&resp, editor, origin, mods, press, press_doc, pointer_doc, settings, status),
-                Tool::EditPoints => {
-                    if (resp.clicked() || resp.drag_started_by(PointerButton::Primary))
-                        && let Some(p) = press_doc.or(pointer_doc)
-                    {
-                        let picked = self.pick(editor, p, PICK_PX / f64::from(self.view.zoom));
-                        match picked.filter(|id| matches!(editor.doc.find(*id).map(|o| &o.kind), Some(ObjectKind::Path { .. }))) {
-                            Some(id) => {
-                                editor.select_only(id);
-                                *status = "Edit Points: endpoint inspection only; point editing is not implemented".into();
-                            }
-                            None => {
-                                editor.selection.clear();
-                                *status = "Edit Points requires one ungrouped path; double-click a path or select it with this tool".into();
-                            }
-                        }
-                    }
-                }
+                Tool::EditPoints => self.edit_points_tool(&resp, editor, press_doc, pointer_doc, actions, status),
                 Tool::Rectangle | Tool::Ellipse | Tool::Line => {
                     self.shape_tool(tool, &resp, editor, mods, press_doc, pointer_doc, settings, layer);
                 }
@@ -517,7 +577,7 @@ impl Canvas {
                         actions.push(Action::NewText(p.x, p.y));
                     }
                 }
-                Tool::Knife | Tool::Eraser => Self::preview_tool(tool, &resp, completed.as_ref(), editor, status),
+                Tool::Knife | Tool::Eraser => self.finish_vector_tool(tool, &resp, completed.as_ref(), editor, mods, status),
             }
         }
 
@@ -525,11 +585,14 @@ impl Canvas {
         resp.context_menu(|ui| context_menu(ui, editor, actions));
     }
 
-    fn preview_tool(
+    /// Knife and Eraser act when the drag ends: one undoable edit on every unlocked shape it touches.
+    fn finish_vector_tool(
+        &mut self,
         tool: Tool,
         resp: &egui::Response,
         completed: Option<&ToolGesture>,
-        editor: &Editor,
+        editor: &mut Editor,
+        mods: egui::Modifiers,
         status: &mut String,
     ) {
         if !(resp.drag_stopped_by(PointerButton::Primary) || resp.clicked()) {
@@ -539,19 +602,135 @@ impl Canvas {
             *status = format!("{} drag ended without coordinates; document unchanged", tool.label());
             return;
         };
-        let subject: Vec<BezPath> = editor.selected().into_iter().flat_map(|object| object.page_paths()).collect();
         let result = match tool {
-            Tool::Knife => ss_geom::tools::knife_preview(gesture.start, gesture.current)
-                .map(|cut| ss_geom::tools::split_with_knife(&subject, &cut, ss_geom::DEFAULT_TOLERANCE)),
-            Tool::Eraser => ss_geom::tools::eraser_preview(&gesture.points)
-                .map(|stroke| ss_geom::tools::subtract_with_eraser(&subject, &stroke, ERASER_RADIUS_MM, ss_geom::DEFAULT_TOLERANCE)),
+            Tool::Knife => editor.knife_cut(&knife_cut_points(gesture, mods)).map(|n| format!("Knife split {n} shape(s)")),
+            Tool::Eraser => editor
+                .erase_with_brush(&gesture.points, self.eraser_radius_mm, self.eraser_shape)
+                .map(|n| format!("Eraser changed {n} shape(s)")),
             _ => return,
         };
-        *status = match result {
-            Some(Err(error)) => format!("{} drag recorded ({} points): {error}", tool.label(), gesture.points.len()),
-            Some(Ok(_)) => format!("{} geometry returned, but editor commit is unavailable; document unchanged", tool.label()),
-            None => format!("{} needs a drag with distinct points; document unchanged", tool.label()),
-        };
+        *status = result.unwrap_or_else(|e| format!("{}: {e}", tool.label()));
+    }
+
+    /// Edit Points: drag nodes and curve handles, click a line to add a point, double-click a
+    /// point to delete it (Delete/Backspace are handled by the app), double-click elsewhere to
+    /// leave the mode. Drags edit the document live and commit one undo step on release.
+    fn edit_points_tool(
+        &mut self,
+        resp: &egui::Response,
+        editor: &mut Editor,
+        press_doc: Option<Point>,
+        pointer_doc: Option<Point>,
+        actions: &mut Vec<Action>,
+        status: &mut String,
+    ) {
+        let tol_page = PICK_PX / f64::from(self.view.zoom);
+
+        if let Some(mut edit) = self.node_drag.take() {
+            let mut keep = true;
+            if resp.dragged_by(PointerButton::Primary)
+                && let Some(p) = pointer_doc
+            {
+                let target = edit.inverse * p + edit.grab;
+                match edit.pick {
+                    Pick::Anchor(n) => edit.nodes.move_anchor(n, target),
+                    Pick::Handle(n, side) => edit.nodes.move_handle(n, side, target),
+                }
+                edit.moved = true;
+                editor.set_path_live(edit.id, edit.nodes.to_bez());
+            }
+            if resp.drag_stopped_by(PointerButton::Primary) {
+                keep = false;
+                if edit.moved {
+                    let label = if matches!(edit.pick, Pick::Anchor(_)) { "Move Point" } else { "Adjust Curve" };
+                    editor.commit_edit(label, std::mem::take(&mut edit.before));
+                }
+            }
+            if keep {
+                self.node_drag = Some(edit);
+            }
+            return;
+        }
+
+        let sole = Self::sole_path(editor);
+        let local_tol = |inv: Affine| tol_page * inv.determinant().abs().sqrt();
+
+        if resp.double_clicked()
+            && let Some(p) = pointer_doc
+        {
+            if let Some((id, m)) = sole {
+                let inv = m.inverse();
+                if let Some(Pick::Anchor(n)) = editor.path_nodes(id).and_then(|nodes| nodes.pick(inv * p, local_tol(inv), None)) {
+                    match editor.delete_path_node(id, n) {
+                        Ok(()) => *status = "Deleted point".into(),
+                        Err(e) => *status = e.to_string(),
+                    }
+                    self.selected_node = None;
+                    return;
+                }
+            }
+            actions.push(Action::SetTool(Tool::Select));
+            return;
+        }
+
+        let started = resp.drag_started_by(PointerButton::Primary);
+        if !(started || resp.clicked()) {
+            return;
+        }
+        let Some(p) = press_doc.or(pointer_doc) else { return };
+
+        if let Some((id, m)) = sole
+            && let Some(mut nodes) = editor.path_nodes(id)
+        {
+            let inv = m.inverse();
+            let tol = local_tol(inv);
+            let local = inv * p;
+            let selected = self.selected_node.filter(|(sid, _)| *sid == id).map(|(_, n)| n);
+            let mut pick = nodes.pick(local, tol, selected);
+            if pick.is_none()
+                && let Ok(n) = editor.insert_path_node(id, local, tol)
+            {
+                nodes = editor.path_nodes(id).unwrap_or(nodes);
+                pick = Some(Pick::Anchor(n));
+                *status = "Added point".into();
+            }
+            if let Some(pick) = pick {
+                let node_id = match pick {
+                    Pick::Anchor(n) | Pick::Handle(n, _) => n,
+                };
+                self.selected_node = Some((id, node_id));
+                if started {
+                    let held = nodes.node(node_id).and_then(|n| match pick {
+                        Pick::Anchor(_) => Some(n.pos),
+                        Pick::Handle(_, HandleSide::In) => n.hin,
+                        Pick::Handle(_, HandleSide::Out) => n.hout,
+                    });
+                    self.node_drag = Some(NodeEdit {
+                        id,
+                        pick,
+                        nodes,
+                        inverse: inv,
+                        grab: held.map_or(Vec2::ZERO, |h| h - local),
+                        before: editor.doc.clone(),
+                        moved: false,
+                    });
+                }
+                return;
+            }
+        }
+
+        // Nothing under the pointer: pick another path, or clear the selection.
+        self.selected_node = None;
+        match self.pick(editor, p, tol_page).filter(|id| matches!(editor.doc.find(*id).map(|o| &o.kind), Some(ObjectKind::Path { .. }))) {
+            Some(id) => {
+                editor.select_only(id);
+                *status = "Edit Points: drag a point or handle; click a line to add a point; Delete removes the selected point".into();
+            }
+            None => {
+                editor.selection.clear();
+                *status = "Edit Points needs one ungrouped path; click a path to edit its points".into();
+            }
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -844,6 +1023,50 @@ impl Canvas {
         out
     }
 
+    /// Nodes of the edited path: dark grey squares, the selected one white with its blue handles
+    /// and its outgoing segment in red.
+    fn paint_nodes(&self, painter: &egui::Painter, origin: Pos2, nodes: &NodePath, m: Affine, selected: Option<NodeId>) {
+        let v = self.view;
+        let screen = |p: Point| v.to_screen(origin, m * p);
+        let sel_stroke = Stroke::new(1.0, SELECTION_COLOR);
+        for (si, sub) in nodes.subs.iter().enumerate() {
+            if let Some(NodeId { sub: s, index }) = selected
+                && s == si
+                && let Some(a) = sub.nodes.get(index)
+            {
+                let next = if index + 1 < sub.nodes.len() { Some(index + 1) } else if sub.closed { Some(0) } else { None };
+                if let Some(b) = next.and_then(|j| sub.nodes.get(j)) {
+                    let mut seg = BezPath::new();
+                    seg.move_to(a.pos);
+                    if a.hout.is_none() && b.hin.is_none() {
+                        seg.line_to(b.pos);
+                    } else {
+                        seg.curve_to(a.hout.unwrap_or(a.pos), b.hin.unwrap_or(b.pos), b.pos);
+                    }
+                    for l in flatten(&seg, RENDER_TOLERANCE) {
+                        let pts: Vec<Pos2> = l.points.iter().map(|p| screen(*p)).collect();
+                        painter.add(Shape::line(pts, Stroke::new(2.5, Color32::from_rgb(0xe0, 0x20, 0x20))));
+                    }
+                }
+            }
+            for (ni, n) in sub.nodes.iter().enumerate() {
+                let is_sel = selected == Some(NodeId { sub: si, index: ni });
+                let c = screen(n.pos);
+                if is_sel {
+                    for h in [n.hin, n.hout].into_iter().flatten() {
+                        let hp = screen(h);
+                        painter.line_segment([c, hp], Stroke::new(1.0, Color32::from_rgb(0x30, 0x60, 0xff)));
+                        painter.circle_filled(hp, 3.5, Color32::from_rgb(0x30, 0x60, 0xff));
+                        painter.circle_stroke(hp, 3.5, Stroke::new(1.0, Color32::WHITE));
+                    }
+                }
+                let node = egui::Rect::from_center_size(c, vec2(7.0, 7.0));
+                painter.rect_filled(node, 0.0, if is_sel { Color32::WHITE } else { Color32::from_gray(70) });
+                painter.rect_stroke(node, 0.0, sel_stroke, StrokeKind::Inside);
+            }
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn paint(
         &self,
@@ -991,25 +1214,11 @@ impl Canvas {
         painter.extend(shapes);
 
         let sel_stroke = Stroke::new(1.0, SELECTION_COLOR);
-        if tool == Tool::EditPoints && editor.selection.len() == 1 {
-            for o in editor.doc.visible_objects().filter(|o| {
-                editor.selection.contains(&o.id) && matches!(o.kind, ObjectKind::Path { .. })
-            }) {
-                for path in o.page_paths() {
-                    for el in path.elements() {
-                        let endpoint = match *el {
-                            ss_geom::kurbo::PathEl::MoveTo(p) | ss_geom::kurbo::PathEl::LineTo(p)
-                            | ss_geom::kurbo::PathEl::QuadTo(_, p) | ss_geom::kurbo::PathEl::CurveTo(_, _, p) => Some(p),
-                            ss_geom::kurbo::PathEl::ClosePath => None,
-                        };
-                        if let Some(p) = endpoint {
-                            let node = egui::Rect::from_center_size(v.to_screen(origin, p), vec2(6.0, 6.0));
-                            painter.rect_filled(node, 0.0, Color32::WHITE);
-                            painter.rect_stroke(node, 0.0, sel_stroke, StrokeKind::Inside);
-                        }
-                    }
-                }
-            }
+        if tool == Tool::EditPoints
+            && let Some((id, m)) = Self::sole_path(editor)
+            && let Some(nodes) = editor.path_nodes(id)
+        {
+            self.paint_nodes(painter, origin, &nodes, m, self.valid_node(editor).map(|(_, n)| n));
         }
         if tool == Tool::Select
             && let Some(b) = self.bounds_of(&editor.selection).map(|b| transform_rect(self.preview, b))
@@ -1048,29 +1257,40 @@ impl Canvas {
             }
             _ => {}
         }
+        for line in &self.trace_preview {
+            let pts = self.screen_points(origin, line, Affine::IDENTITY);
+            if pts.len() >= 3 {
+                painter.add(Shape::closed_line(pts, Stroke::new(1.5, Color32::from_rgb(0xd0, 0x30, 0xc0))));
+            }
+        }
         if let Some(gesture) = gesture {
+            let mods = painter.ctx().input(|i| i.modifiers);
             match tool {
                 Tool::Knife => {
-                    if ss_geom::tools::knife_preview(gesture.start, gesture.current).is_some() {
-                        painter.line_segment(
-                            [v.to_screen(origin, gesture.start), v.to_screen(origin, gesture.current)],
-                            Stroke::new(2.0, Color32::RED),
-                        );
+                    let cut = knife_cut_points(gesture, mods);
+                    let pts = self.screen_points(origin, &cut, Affine::IDENTITY);
+                    if cut.len() >= 2 && pts.len() >= 2 {
+                        painter.add(Shape::line(pts, Stroke::new(2.0, Color32::RED)));
                     }
                 }
                 Tool::Eraser => {
-                    if let Some(stroke) = ss_geom::tools::eraser_preview(&gesture.points) {
-                        for line in flatten(&stroke, RENDER_TOLERANCE) {
-                            let points = self.screen_points(origin, &line.points, Affine::IDENTITY);
-                            if points.len() >= 2 {
-                                painter.add(Shape::line(points, Stroke::new(10.0, Color32::from_rgba_unmultiplied(230, 80, 80, 100))));
-                            }
+                    let radius = self.eraser_radius_mm as f32 * v.zoom;
+                    let ink = Color32::from_rgba_unmultiplied(230, 80, 80, 100);
+                    let pts = self.screen_points(origin, &gesture.points, Affine::IDENTITY);
+                    if pts.len() >= 2 {
+                        painter.add(Shape::line(pts, Stroke::new(radius * 2.0, ink)));
+                    }
+                    let c = v.to_screen(origin, gesture.current);
+                    match self.eraser_shape {
+                        BrushShape::Round => {
+                            painter.circle_filled(c, radius, ink);
+                            painter.circle_stroke(c, radius, Stroke::new(1.0, Color32::RED));
                         }
-                        painter.circle_stroke(
-                            v.to_screen(origin, gesture.current),
-                            ERASER_RADIUS_MM as f32 * v.zoom,
-                            Stroke::new(1.0, Color32::RED),
-                        );
+                        BrushShape::Square => {
+                            let r = egui::Rect::from_center_size(c, vec2(radius * 2.0, radius * 2.0));
+                            painter.rect_filled(r, 0.0, ink);
+                            painter.rect_stroke(r, 0.0, Stroke::new(1.0, Color32::RED), StrokeKind::Inside);
+                        }
                     }
                 }
                 _ => {}

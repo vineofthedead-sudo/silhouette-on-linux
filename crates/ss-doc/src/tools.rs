@@ -39,15 +39,15 @@ impl Tool {
     pub fn hint(self) -> &'static str {
         match self {
             Self::Select => "Click to select, Shift-click to add, drag to move, drag handles to scale or rotate",
-            Self::EditPoints => "Click a path to inspect its endpoints; point editing is not implemented yet",
+            Self::EditPoints => "Drag points or blue handles; click a line to add a point; Delete or double-click a point removes it; double-click empty space to leave",
             Self::Line => "Drag to draw a line; Shift snaps to 45°",
             Self::Rectangle => "Drag to draw a rectangle; Shift for a square",
             Self::Ellipse => "Drag to draw an ellipse; Shift for a circle",
             Self::Polyline => "Click to add points; click the first point to close, double-click or Enter to finish",
             Self::Freehand => "Drag to draw; end near the start to close the shape",
             Self::Text => "Click where the top-left corner of the text should go",
-            Self::Knife => "Drag a knife line (preview only; splitting is not implemented yet)",
-            Self::Eraser => "Drag an eraser stroke (preview only; subtraction is not implemented yet)",
+            Self::Knife => "Drag a cut across shapes to split them; Shift snaps to 45°, Ctrl-drag slices freehand",
+            Self::Eraser => "Drag to erase parts of shapes; brush size and shape are under Tool Options",
         }
     }
 }

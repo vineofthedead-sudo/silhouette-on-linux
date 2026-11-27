@@ -8,9 +8,9 @@ tool rail, collapsible right dock and mocked Send panel.
 | Area | State | Evidence |
 |---|---|---|
 | Editing, canvas, layers | Stable | Editor unit tests; GUI exercised under Xvfb |
-| V5 tool rail and dock | **Partial** | Tool routing and panels exercised under Xvfb; Edit Points, Knife and Eraser geometry missing |
+| V5 tool rail and dock | Working | `Edit Points`, `Knife`, `Eraser`, and `Auto-Trace` unit-tested in `ss-geom` and `ss-doc`; wired in `ss-app` |
 | Text tool | Working | `ss-text` unit tests; created, edited and restyled in the GUI |
-| Images and background | Working | Real-file tests (612 placed images in 137 files); rendered in the GUI |
+| Images, background, Auto-Trace | Working | Real-file tests (612 placed images in 137 files); `Auto-Trace` contour extraction tested on synthetic bitmaps |
 | `.studio3` / `.studio` reading | Stable | 176 real-world and stock files compared against reference SVGs |
 | `.craft` read/write | Working | Round-trip tests; checked against the companion project's own code |
 | SVG / DXF | Stable | Round-trip tests |
@@ -29,16 +29,17 @@ mode, and double-clicking again returns to Select.
 | Tool | Key | State |
 |---|---|---|
 | Select | V | Working: pick, marquee, move, scale, rotate |
-| Edit Points | A | **Inspection only**: double-click path to enter/exit; inspects endpoints; point moving, adding, deleting, breaking, corner/smooth and simplify queued for next phase |
+| Edit Points | A | Working: double-click path to enter/exit; drag anchor nodes and cubic Bézier handles live (smooth handles stay collinear, corner handles move independently); click segment to insert point; `Delete`/`Backspace` or double-click point to remove |
 | Line, Rectangle, Ellipse | L, R, E | Working: Shift constrains angle/square/circle |
 | Polyline | P | Working: successive clicks, double-click or Enter to commit |
 | Freehand | F | Working: continuous drag with curve fitting and auto-close |
 | Text | T | Working: creates text dialog at click position |
-| Knife | K | **Preview & stub**: straight drag preview via `ss_geom::tools::knife_preview`; destructive splitting cleanly stubbed with `split_with_knife` (document unchanged) |
-| Eraser | X | **Preview & stub**: continuous drag preview via `ss_geom::tools::eraser_preview` with radius indicator; boolean subtraction cleanly stubbed with `subtract_with_eraser` (document unchanged) |
+| Knife | K | Working: straight-line slice (`Shift` snaps 45°) or `Ctrl`-drag freehand slice; splits closed and open unlocked paths into independent objects as one undo step (`ss_geom::tools::knife_split`) |
+| Eraser | X | Working: Round or Square brush (`Tool Options` radius/shape); subtracts swept brush via `i_overlay` preserving `EvenOdd` holes and trimming open paths as one undo step (`ss_geom::tools::erase`) |
 
-The right dock is a set of collapsible panels: Page Setup (open), Send (open),
-Properties and Layers.
+The right dock is a set of collapsible panels: Tool Options (contextual for Edit Points, Knife, Eraser), Page Setup (open), Send (open), Auto-Trace, Properties and Layers.
+
+- **Auto-Trace**: traces any selected placed raster image into `kurbo::BezPath` cut contours (`ss_geom::trace::trace_mask`), with threshold, corner smoothing, speck-area filter, invert toggle, live canvas preview (`All lines` / `Outer edge`), and `Trace` / `Trace Outer Edge` actions placing the result onto the active layer as one undo step.
 
 - **Page Setup**: cutting mat selection (None, Cameo 12 × 12, Cameo 12 × 24,
   Portrait 8 × 12, Cameo Plus 15 × 15, Cameo Pro 24 × 24, Curio 8.5 × 6, Curio 8.5 × 12;
@@ -66,16 +67,9 @@ The earlier working sender (`send.rs`: virtual cutter, GPGL file, USB, tool
 path preview) is kept in the source but is not shown in the GUI. Use
 `ss-cli send` for virtual-cutter and file jobs until it is wired back in.
 
-### Missing geometry
+### Remaining items
 
-- Eraser: buffer the stroke into a closed outline (offset of the polyline by the
-  eraser radius) and subtract it from the paths it touches with
-  `ss_geom::boolean`, as one undo step (cleanly stubbed in `ss_geom::tools::subtract_with_eraser`).
-- Knife: split closed and open paths along the knife line into separate
-  objects, closing the cut edges of filled shapes (cleanly stubbed in
-  `ss_geom::tools::split_with_knife`).
-- Edit Points: hit-test individual nodes and handles; move, add and delete
-  points; break a path; corner/smooth; make flat or curved; simplify.
+- Edit Points (advanced): break path, explicit corner/smooth toggle, make flat/curved, and simplify (node/handle dragging, insertion, and deletion are implemented).
 - Send: connect the Line and Fill groups and per-group conditions to
   `ss_gpgl::JobSettings` (per-pass tool settings, order and pauses), and pass
   blade depth to cutters that support it.
@@ -83,7 +77,7 @@ path preview) is kept in the source but is not shown in the GUI. Use
 ## Tests
 
 - `cargo test --workspace --exclude ss-device -- --skip user_fixtures_parse`:
-  89 passed, 0 failed, 1 ignored (a timing benchmark). `ss-device` was left
+  126 passed, 0 failed, 1 ignored (a timing benchmark). `ss-device` was left
   out on purpose during the UI work (one of its tests lists USB devices).
   `user_fixtures_parse` now reaches about 6.6 GB of memory on the full
   fixture folder and was killed by `earlyoom` on a machine that was low on

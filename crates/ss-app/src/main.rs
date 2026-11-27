@@ -4,6 +4,7 @@ mod app;
 mod canvas;
 mod panels;
 mod mock_send;
+mod trace_panel;
 // Retain the legacy sender for later hardware work; the V5 dock is mock-only.
 #[allow(dead_code)]
 mod send;

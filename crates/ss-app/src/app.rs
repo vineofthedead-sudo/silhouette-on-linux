@@ -11,6 +11,7 @@ use ss_geom::offset::Join;
 use crate::canvas::{Canvas, Tool, tool_key};
 use crate::panels;
 use crate::mock_send::MockSendPanel;
+use crate::trace_panel::TracePanel;
 
 const OPEN_EXTENSIONS: &[&str] = &["studio3", "studio", "svg", "svgz", "dxf", "craft", "ssrs"];
 const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg"];
@@ -93,6 +94,7 @@ pub struct StudioApp {
     canvas: Canvas,
     tool_state: ToolState,
     send: MockSendPanel,
+    trace: TracePanel,
     active_layer: LayerId,
     status: String,
     clipboard: Vec<Object>,
@@ -167,6 +169,7 @@ impl StudioApp {
             canvas: Canvas::default(),
             tool_state: ToolState::default(),
             send: MockSendPanel::default(),
+            trace: TracePanel::default(),
             status,
             clipboard: Vec::new(),
             confirm: None,
@@ -212,6 +215,8 @@ impl StudioApp {
         self.tool_state.cancel();
         self.canvas.cancel_interaction();
         self.canvas.overlay.clear();
+        self.canvas.trace_preview.clear();
+        self.trace.reset();
         let page = self.editor.doc.page.rect();
         let r = self.editor.doc.bounds().map_or(page, |b| b.union(page));
         self.canvas.fit_to(r);
@@ -516,8 +521,13 @@ impl StudioApp {
                 self.report(r);
             }
             Action::Delete => {
-                let r = self.editor.delete_selected();
-                self.report(r);
+                // With Edit Points, Delete removes the selected point instead of the whole path.
+                let node_deleted = self.tool_state.active() == Tool::EditPoints
+                    && self.canvas.delete_selected_node(&mut self.editor, &mut self.status);
+                if !node_deleted {
+                    let r = self.editor.delete_selected();
+                    self.report(r);
+                }
             }
             Action::SelectAll => self.editor.select_all(),
             Action::SelectNone => self.editor.selection.clear(),
@@ -627,10 +637,11 @@ impl StudioApp {
                 }
             }
             Action::SetTool(t) => {
+                self.canvas.abort_node_drag(&mut self.editor);
                 self.tool_state.set_active(t);
                 self.canvas.cancel_interaction();
                 if t == Tool::EditPoints {
-                    self.status = "Edit Points requires one ungrouped path; double-click a path or select it with this tool".into();
+                    self.status = "Edit Points: select one ungrouped path, then drag its points and handles".into();
                 }
             }
             Action::About => self.about = true,
@@ -1025,6 +1036,23 @@ impl eframe::App for StudioApp {
         egui::Panel::right("side").default_size(300.0).min_size(240.0).show(ui, |ui| {
             ui.add_space(4.0);
             egui::ScrollArea::vertical().show(ui, |ui| {
+                let tool = self.tool_state.active();
+                if matches!(tool, Tool::Eraser | Tool::Knife | Tool::EditPoints) {
+                    egui::CollapsingHeader::new("Tool Options").default_open(true).show(ui, |ui| {
+                        ui.weak(tool.hint());
+                        if tool == Tool::Eraser {
+                            ui.horizontal(|ui| {
+                                ui.label("Brush");
+                                ui.selectable_value(&mut self.canvas.eraser_shape, ss_geom::tools::BrushShape::Round, "Round");
+                                ui.selectable_value(&mut self.canvas.eraser_shape, ss_geom::tools::BrushShape::Square, "Square");
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("Radius");
+                                ui.add(egui::DragValue::new(&mut self.canvas.eraser_radius_mm).range(0.2..=50.0).speed(0.1).suffix(" mm"));
+                            });
+                        }
+                    });
+                }
                 egui::CollapsingHeader::new("Page Setup").default_open(true).show(ui, |ui| {
                     let change = panels::page(ui, &mut self.editor, &mut self.settings, &mut self.canvas.mat, &mut actions, &mut self.status);
                     if change.settings {
@@ -1037,6 +1065,13 @@ impl eframe::App for StudioApp {
                 egui::CollapsingHeader::new("Send").default_open(true).show(ui, |ui| {
                     self.send.ui(ui, &self.editor);
                 });
+                let trace_open = egui::CollapsingHeader::new("Auto-Trace").show(ui, |ui| {
+                    self.trace.ui(ui, &mut self.editor, self.active_layer, &mut self.canvas, &mut self.status);
+                });
+                if trace_open.body_response.is_none() && !self.canvas.trace_preview.is_empty() {
+                    self.canvas.trace_preview.clear();
+                    self.trace.reset();
+                }
                 egui::CollapsingHeader::new("Properties").show(ui, |ui| {
                     let b = self.canvas.bounds_of(&self.editor.selection);
                     panels::properties(ui, &mut self.editor, b, self.settings.units, &mut actions, &mut self.status);

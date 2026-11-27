@@ -7,9 +7,11 @@
 pub mod boolean;
 pub mod fit;
 pub mod flatten;
+pub mod nodes;
 pub mod offset;
 pub mod ops;
 pub mod tools;
+pub mod trace;
 pub mod triangulate;
 
 pub use kurbo::{self, Affine, BezPath, PathEl, PathSeg, Point, Rect, Shape, Vec2};

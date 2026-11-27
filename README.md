@@ -23,7 +23,7 @@ protocol — no Windows, no Wine, no virtual machine.
 | Feature area | Status | Notes |
 |---|---|---|
 | Design canvas (pan, zoom, grid, snap, cut border) | ✅ Implemented | |
-| Drawing tools (select, rectangle, ellipse, line, polyline, freehand) | ✅ Implemented | Freehand input is fitted to smooth Béziers |
+| Drawing tools (select, edit points, rectangle, ellipse, line, polyline, freehand) | ✅ Implemented | Freehand input is fitted to smooth Béziers; Edit Points supports live node/handle dragging, point insertion, and deletion |
 | Selection & transforms (move, scale, rotate, flip, align, distribute) | ✅ Implemented | Handles + numeric entry, single undo step per gesture |
 | Group / ungroup, compound paths, group by colour | ✅ Implemented | |
 | Boolean weld / subtract / intersect | ✅ Implemented | |
@@ -31,8 +31,9 @@ protocol — no Windows, no Wine, no virtual machine.
 | Layers (visibility, lock, reorder, per-layer objects) | ✅ Implemented | |
 | Undo / redo | ✅ Implemented | Snapshot-based history |
 | Text tool | ✅ Implemented | Any installed font, bold/italic (synthetic slant when no italic face), size, letter and line spacing, re-editable, convert to paths. Simple left-aligned layout: no ligatures or right-to-left shaping |
-| Raster images | 🚧 Partial | PNG/JPEG placement and rendering, images embedded in `.studio3` and `.craft` files, page background image. No auto-trace |
-| Knife / eraser / warp / nest tools | ❌ Not yet implemented | |
+| Raster images & Auto-Trace | ✅ Implemented | PNG/JPEG placement and rendering, images embedded in `.studio3` and `.craft` files, page background image, and Auto-Trace (`Trace` & `Trace Outer Edge` with threshold, smoothing, and live preview) |
+| Knife & Eraser tools | ✅ Implemented | Straight (`Shift`-snap) / freehand (`Ctrl`-drag) Knife slicing; Round / Square brush Eraser subtraction preserving `EvenOdd` holes |
+| Warp / nest tools | ❌ Not yet implemented | |
 | `.studio3` / `.studio` read | ✅ Implemented | Validated against 176 real-world files, including 612 placed images (see tests) |
 | `.studio3` / `.studio` write | ❌ Not yet implemented | Use the native `.ssrs` project format, `.craft`, or SVG/DXF export |
 | `.craft` (Studio_to_SVG project) read & write | ✅ Implemented | Shapes, text, groups, images, paper and registration marks |
