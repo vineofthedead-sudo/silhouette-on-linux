@@ -1082,6 +1082,9 @@ impl eframe::App for StudioApp {
                     let b = self.canvas.bounds_of(&self.editor.selection);
                     panels::properties(ui, &mut self.editor, b, self.settings.units, &mut actions, &mut self.status);
                 });
+                egui::CollapsingHeader::new("Replicate").show(ui, |ui| {
+                    panels::replicate(ui, &mut self.editor, self.settings.units, &mut self.status);
+                });
                 egui::CollapsingHeader::new("Layers").show(ui, |ui| {
                     panels::layers(ui, &mut self.editor, &mut self.active_layer);
                 });

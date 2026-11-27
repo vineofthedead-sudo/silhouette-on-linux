@@ -254,6 +254,35 @@ fn pattern_defs(doc: &Document, s: &mut String) -> std::collections::HashMap<ss_
     ids
 }
 
+fn gradient_defs(doc: &Document, s: &mut String) -> std::collections::HashMap<ss_doc::ObjectId, String> {
+    let mut ids = std::collections::HashMap::new();
+    let objs: Vec<&Object> = doc.visible_objects().filter(|o| o.style.fill_gradient.is_some() && o.style.fill_pattern.is_none()).collect();
+    if objs.is_empty() {
+        return ids;
+    }
+    s.push_str("<defs>\n");
+    for (n, o) in objs.into_iter().enumerate() {
+        let Some(g) = &o.style.fill_gradient else { continue };
+        let id = format!("ss-grad-{n}");
+        if g.radial {
+            let _ = writeln!(s, r#"<radialGradient id="{id}" cx="50%" cy="50%" r="50%">"#);
+        } else {
+            let rad = g.angle_deg.to_radians();
+            let (dx, dy) = (rad.cos(), rad.sin());
+            let (x1, y1, x2, y2) = (50.0 - 50.0 * dx, 50.0 - 50.0 * dy, 50.0 + 50.0 * dx, 50.0 + 50.0 * dy);
+            let _ = writeln!(s, r#"<linearGradient id="{id}" x1="{x1:.1}%" y1="{y1:.1}%" x2="{x2:.1}%" y2="{y2:.1}%">"#);
+        }
+        for &(pos, color) in &g.stops {
+            let opacity = f64::from(color.a) / 255.0;
+            let _ = writeln!(s, r#"  <stop offset="{:.2}%" stop-color="{}" stop-opacity="{opacity:.3}"/>"#, pos * 100.0, color.to_hex());
+        }
+        s.push_str(if g.radial { "</radialGradient>\n" } else { "</linearGradient>\n" });
+        ids.insert(o.id, id);
+    }
+    s.push_str("</defs>\n");
+    ids
+}
+
 /// Exports visible objects as an SVG sized to the page, in millimetres. Images (and the
 /// background) are embedded as `<image>`; registration marks, when enabled, are drawn as filled
 /// black shapes so the sheet can be printed elsewhere.
@@ -273,6 +302,7 @@ pub fn export(doc: &Document) -> String {
         let _ = writeln!(s, "{}", image_element(bg, Affine::IDENTITY, &format!(r#"id="{BACKGROUND_ID}""#)));
     }
     let patterns = pattern_defs(doc, &mut s);
+    let gradients = gradient_defs(doc, &mut s);
     for layer in &doc.layers {
         let objs: Vec<&Object> = doc.visible_objects().filter(|o| o.layer == layer.id).collect();
         if objs.is_empty() {
@@ -283,16 +313,22 @@ pub fn export(doc: &Document) -> String {
             for (img, m) in o.page_images() {
                 let _ = writeln!(s, "{}", image_element(img, m, &format!(r#"data-name="{}""#, esc(&o.name))));
             }
-            let fill = match patterns.get(&o.id) {
+            let fill = match patterns.get(&o.id).or_else(|| gradients.get(&o.id)) {
                 Some(id) => format!("url(#{id})"),
                 None => o.style.fill.map_or("none".to_string(), Rgba::to_hex),
             };
             let rule = if o.fill_rule() == FillRule::EvenOdd { r#" fill-rule="evenodd""# } else { "" };
             let stroke = if o.style.stroke.a == 0 { "none".to_string() } else { o.style.stroke.to_hex() };
+            let dash = if o.style.dash_mm.is_empty() {
+                String::new()
+            } else {
+                let vals: Vec<String> = o.style.dash_mm.iter().map(|d| fmt_num(*d)).collect();
+                format!(r#" stroke-dasharray="{}""#, vals.join(" "))
+            };
             for p in o.cut_paths() {
                 let _ = writeln!(
                     s,
-                    r#"<path data-name="{}" d="{}" fill="{}"{} stroke="{}" stroke-width="{}"/>"#,
+                    r#"<path data-name="{}" d="{}" fill="{}"{} stroke="{}" stroke-width="{}"{dash}/>"#,
                     esc(&o.name),
                     path_data(&p),
                     fill,

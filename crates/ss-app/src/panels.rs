@@ -2,7 +2,7 @@
 
 use egui::{Color32, DragValue, Ui};
 use ss_config::{Settings, Units};
-use ss_doc::{CutAction, CuttingMat, Editor, Layer, LayerId, ObjectKind, Page, RegMarks, Rgba};
+use ss_doc::{CutAction, CuttingMat, Editor, Layer, LayerId, ObjectKind, Page, RegMarks, ReplicateDir, ReplicateOp, Rgba};
 use ss_geom::{Affine, Rect, Vec2};
 
 use crate::app::{Action, units};
@@ -556,4 +556,96 @@ pub fn page(ui: &mut Ui, editor: &mut Editor, settings: &mut Settings, mat: &mut
         }
     });
     change
+}
+
+/// Replicate panel: directional duplicates, mirror copies, rows/columns, custom grid, and Fill Page.
+pub fn replicate(ui: &mut Ui, editor: &mut Editor, unit: Units, status: &mut String) {
+    if editor.selection.is_empty() {
+        ui.weak("Select one or more objects to replicate.");
+        return;
+    }
+    let (f, suffix) = units(unit);
+    let decimals = if unit == Units::Inch { 3 } else { 1 };
+    let suffix = format!(" {suffix}");
+
+    let rows_id = ui.scope_id().with("rep-rows");
+    let cols_id = ui.scope_id().with("rep-cols");
+    let gx_id = ui.scope_id().with("rep-gx");
+    let gy_id = ui.scope_id().with("rep-gy");
+    let mut rows = ui.data(|d| d.get_temp::<usize>(rows_id)).unwrap_or(2);
+    let mut cols = ui.data(|d| d.get_temp::<usize>(cols_id)).unwrap_or(3);
+    let mut gap_x_mm = ui.data(|d| d.get_temp::<f64>(gx_id)).unwrap_or(2.0);
+    let mut gap_y_mm = ui.data(|d| d.get_temp::<f64>(gy_id)).unwrap_or(2.0);
+
+    ui.horizontal(|ui| {
+        ui.label("Gap X");
+        let mut gx = gap_x_mm * f;
+        if ui.add(DragValue::new(&mut gx).speed(0.2 * f).range(0.0..=(200.0 * f)).suffix(&suffix).fixed_decimals(decimals)).changed() {
+            gap_x_mm = gx / f;
+            ui.data_mut(|d| d.insert_temp(gx_id, gap_x_mm));
+        }
+        ui.label("Y");
+        let mut gy = gap_y_mm * f;
+        if ui.add(DragValue::new(&mut gy).speed(0.2 * f).range(0.0..=(200.0 * f)).suffix(&suffix).fixed_decimals(decimals)).changed() {
+            gap_y_mm = gy / f;
+            ui.data_mut(|d| d.insert_temp(gy_id, gap_y_mm));
+        }
+    });
+
+    ui.label("Duplicate");
+    ui.horizontal_wrapped(|ui| {
+        for (label, dir, g) in [
+            ("Left", ReplicateDir::Left, gap_x_mm),
+            ("Right", ReplicateDir::Right, gap_x_mm),
+            ("Above", ReplicateDir::Above, gap_y_mm),
+            ("Below", ReplicateDir::Below, gap_y_mm),
+        ] {
+            if ui.button(label).clicked() {
+                report(status, editor.replicate_selected(ReplicateOp::Step { dir, gap_mm: g }));
+            }
+        }
+    });
+
+    ui.label("Mirror Copy");
+    ui.horizontal_wrapped(|ui| {
+        for (label, dir, g) in [
+            ("Left", ReplicateDir::Left, gap_x_mm),
+            ("Right", ReplicateDir::Right, gap_x_mm),
+            ("Above", ReplicateDir::Above, gap_y_mm),
+            ("Below", ReplicateDir::Below, gap_y_mm),
+        ] {
+            if ui.button(label).clicked() {
+                report(status, editor.replicate_selected(ReplicateOp::Mirror { dir, gap_mm: g }));
+            }
+        }
+    });
+
+    ui.label("Row / Column");
+    ui.horizontal_wrapped(|ui| {
+        for (label, r, c) in [("Row ×3", 1, 3), ("Row ×4", 1, 4), ("Col ×3", 3, 1), ("Col ×4", 4, 1)] {
+            if ui.button(label).clicked() {
+                report(status, editor.replicate_selected(ReplicateOp::Grid { rows: r, cols: c, gap_x_mm, gap_y_mm }));
+            }
+        }
+    });
+
+    ui.separator();
+    ui.label("Grid Array");
+    ui.horizontal(|ui| {
+        ui.label("Rows");
+        if ui.add(DragValue::new(&mut rows).range(1..=50)).changed() {
+            ui.data_mut(|d| d.insert_temp(rows_id, rows));
+        }
+        ui.label("Cols");
+        if ui.add(DragValue::new(&mut cols).range(1..=50)).changed() {
+            ui.data_mut(|d| d.insert_temp(cols_id, cols));
+        }
+        if ui.button("Apply Grid").clicked() {
+            report(status, editor.replicate_selected(ReplicateOp::Grid { rows, cols, gap_x_mm, gap_y_mm }));
+        }
+    });
+
+    if ui.button("Fill Page").on_hover_text("Auto-nest copies across the active media inside its cut border").clicked() {
+        report(status, editor.replicate_selected(ReplicateOp::FillPage { gap_x_mm, gap_y_mm }));
+    }
 }

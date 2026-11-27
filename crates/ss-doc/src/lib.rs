@@ -14,3 +14,4 @@ pub use editor::{Align, Editor, EditError};
 pub use history::History;
 pub use model::*;
 pub use tools::{CuttingMat, Tool, ToolEvent, ToolEventKind, ToolGesture, ToolState};
+pub use vector_tools::{ReplicateDir, ReplicateOp};

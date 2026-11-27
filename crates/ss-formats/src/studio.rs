@@ -1051,6 +1051,14 @@ pub fn to_document(file: &StudioFile) -> ss_doc::Document {
                         o.style.fill = Some(rgba);
                     }
                 }
+                let mut gstops: Vec<(f64, Rgba)> = stops
+                    .iter()
+                    .map(|(pos, c)| (f64::from(*pos).clamp(0.0, 1.0), Rgba::from_f32(*c)))
+                    .collect();
+                gstops.sort_by(|a, b| a.0.total_cmp(&b.0));
+                if !gstops.is_empty() {
+                    o.style.fill_gradient = Some(ss_doc::GradientFill { stops: gstops, angle_deg: 0.0, radial: false });
+                }
             }
             Some(StudioFill::Pattern(pid)) => {
                 if let Some(img) = images_by_id.get(pid.as_str()) {
@@ -1068,6 +1076,9 @@ pub fn to_document(file: &StudioFile) -> ss_doc::Document {
         if s.pattern.is_some_and(|p| !p.tiled) {
             // Placed pictures are artwork, not cut lines.
             o.cut = ss_doc::CutAction::NoCut;
+        }
+        if o.cut == ss_doc::CutAction::Perforate && o.style.dash_mm.is_empty() {
+            o.style.dash_mm = vec![2.0, 1.0];
         }
         doc.objects.push(o);
     }
@@ -1183,5 +1194,89 @@ mod tests {
             dropped_sections: 0,
         };
         assert_eq!(f.saved_by_string().as_deref(), Some("5.0.79"));
+    }
+
+    #[test]
+    fn decodes_solid_gradient_and_perforate_styles() {
+        let str_blk = |s: &str| {
+            let mut b = vec![1u8];
+            let mut body = (s.len() as u32).to_le_bytes().to_vec();
+            body.extend_from_slice(s.as_bytes());
+            b.extend(((body.len() + 4) as u32).to_le_bytes());
+            b.extend(body);
+            b
+        };
+        let mut p = vec![0u8, 1];
+        for c in [0.0f32, 0.5, 1.0, 1.0] {
+            p.extend(c.to_le_bytes());
+        }
+        p.extend(0.0f32.to_le_bytes());
+        p.extend(1.25f32.to_le_bytes());
+        p.extend(str_blk("perforate"));
+        p.push(0);
+        p.extend((5u32).to_le_bytes());
+        p.extend_from_slice(b"miter");
+        p.push(0);
+        p.extend((4u32).to_le_bytes());
+        p.extend_from_slice(b"flat");
+        // Gradient fill (type 2) with 2 stops (last_stop = 1).
+        p.push(2);
+        p.extend(44u32.to_le_bytes());
+        p.extend(1i32.to_le_bytes());
+        for (pos, rgba) in [(0.0f32, [1.0f32, 0.0, 0.0, 1.0]), (1.0f32, [0.0f32, 0.0, 1.0, 1.0])] {
+            for c in rgba {
+                p.extend(c.to_le_bytes());
+            }
+            p.extend(pos.to_le_bytes());
+        }
+
+        let props = parse_props_body(&p).unwrap();
+        assert_eq!(props.stroke, Some([0.0, 0.5, 1.0, 1.0]));
+        assert!((props.stroke_width_mm - 1.25).abs() < 1e-6);
+        assert_eq!(props.cut_id.as_deref(), Some("perforate"));
+        let Some(StudioFill::Gradient(stops)) = props.fill else { panic!("expected gradient") };
+        assert_eq!(stops.len(), 2);
+
+        let file = StudioFile {
+            version: StudioVersion::V5,
+            saved_by: None,
+            page_mm: None,
+            shapes: vec![StudioShape {
+                name: Some("Grad".into()),
+                serial: 1,
+                matrix: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+                outline: vec![StudioSubpath {
+                    closed: true,
+                    points: vec![
+                        StudioPoint { x: 0.0, y: 0.0, handle_in: None, handle_out: None },
+                        StudioPoint { x: 10.0, y: 0.0, handle_in: None, handle_out: None },
+                        StudioPoint { x: 10.0, y: 10.0, handle_in: None, handle_out: None },
+                    ],
+                }],
+                effects: vec![],
+                a_range: (0, 0),
+                p_offset: 0,
+                image_fill: None,
+                stroke: props.stroke,
+                stroke_width_mm: props.stroke_width_mm,
+                cut_id: props.cut_id,
+                fill: Some(StudioFill::Gradient(stops)),
+                layer_name: None,
+                pattern: None,
+            }],
+            empty_records: 0,
+            preview_png: None,
+            images: vec![],
+            sections: vec![],
+            dropped_sections: 0,
+        };
+        let doc = to_document(&file);
+        let obj = &doc.objects[0];
+        assert_eq!(obj.cut, ss_doc::CutAction::Perforate);
+        assert_eq!(obj.style.dash_mm, vec![2.0, 1.0]);
+        assert!(obj.style.fill_gradient.is_some());
+        let svg = crate::svg::export(&doc);
+        assert!(svg.contains("<linearGradient"));
+        assert!(svg.contains("stroke-dasharray=\"2 1\""));
     }
 }

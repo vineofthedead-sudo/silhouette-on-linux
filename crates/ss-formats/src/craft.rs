@@ -134,13 +134,13 @@ pub fn has_text(p: &CraftProject) -> bool {
 }
 
 enum Entry {
-    Leaf(Object),
+    Leaf(Box<Object>),
     Group(u64, Vec<Entry>),
 }
 
 fn insert(entries: &mut Vec<Entry>, chain: &[u64], obj: Object) {
     let Some((&g, rest)) = chain.split_first() else {
-        entries.push(Entry::Leaf(obj));
+        entries.push(Entry::Leaf(Box::new(obj)));
         return;
     };
     let pos = entries.iter().position(|e| matches!(e, Entry::Group(id, _) if *id == g));
@@ -155,7 +155,7 @@ fn insert(entries: &mut Vec<Entry>, chain: &[u64], obj: Object) {
 
 fn build(e: Entry, layer: LayerId, names: &BTreeMap<u64, String>) -> Object {
     match e {
-        Entry::Leaf(o) => o,
+        Entry::Leaf(o) => *o,
         Entry::Group(id, children) => {
             let name = names.get(&id).cloned().unwrap_or_else(|| "Group".into());
             let mut g = Object::path(name, layer, BezPath::new());

@@ -12,6 +12,38 @@ use uuid::Uuid;
 use crate::editor::{EditError, Editor};
 use crate::model::*;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReplicateDir {
+    Left,
+    Right,
+    Above,
+    Below,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ReplicateOp {
+    Step { dir: ReplicateDir, gap_mm: f64 },
+    Mirror { dir: ReplicateDir, gap_mm: f64 },
+    Grid { rows: usize, cols: usize, gap_x_mm: f64, gap_y_mm: f64 },
+    FillPage { gap_x_mm: f64, gap_y_mm: f64 },
+}
+
+fn refresh_ids(obj: &mut Object) {
+    obj.id = Uuid::new_v4();
+    if let ObjectKind::Group { children } = &mut obj.kind {
+        for c in children {
+            refresh_ids(c);
+        }
+    }
+}
+
+fn clone_transformed(src: &Object, m: Affine) -> Object {
+    let mut copy = src.clone();
+    refresh_ids(&mut copy);
+    copy.transform = m * copy.transform;
+    copy
+}
+
 type PathOp<'a> = dyn FnMut(&BezPath, FillRule) -> Result<Option<Vec<BezPath>>, ToolGeometryError> + 'a;
 
 struct Pass<'a> {
@@ -272,6 +304,110 @@ impl Editor {
             Ok((before_count, after_count))
         })
     }
+
+    /// Replicates the current selection as a single undoable command (directional duplicates,
+    /// mirror copies, `rows × cols` grid arrays, or `FillPage` auto-nesting inside cut borders).
+    pub fn replicate_selected(&mut self, op: ReplicateOp) -> Result<Vec<ObjectId>, EditError> {
+        let b = self.selection_bounds().ok_or(EditError::EmptySelection)?;
+        let (w, h) = (b.width(), b.height());
+        let label = match op {
+            ReplicateOp::Step { .. } => "Duplicate",
+            ReplicateOp::Mirror { .. } => "Mirror Copy",
+            ReplicateOp::Grid { .. } => "Replicate Grid",
+            ReplicateOp::FillPage { .. } => "Fill Page",
+        };
+        let transforms: Vec<Affine> = match op {
+            ReplicateOp::Step { dir, gap_mm } => {
+                let d = match dir {
+                    ReplicateDir::Right => ss_geom::Vec2::new(w + gap_mm, 0.0),
+                    ReplicateDir::Left => ss_geom::Vec2::new(-(w + gap_mm), 0.0),
+                    ReplicateDir::Below => ss_geom::Vec2::new(0.0, h + gap_mm),
+                    ReplicateDir::Above => ss_geom::Vec2::new(0.0, -(h + gap_mm)),
+                };
+                vec![Affine::translate(d)]
+            }
+            ReplicateOp::Mirror { dir, gap_mm } => {
+                let m = match dir {
+                    ReplicateDir::Right => Affine::translate((2.0 * b.x1 + gap_mm, 0.0)) * Affine::scale_non_uniform(-1.0, 1.0),
+                    ReplicateDir::Left => Affine::translate((2.0 * b.x0 - gap_mm, 0.0)) * Affine::scale_non_uniform(-1.0, 1.0),
+                    ReplicateDir::Below => Affine::translate((0.0, 2.0 * b.y1 + gap_mm)) * Affine::scale_non_uniform(1.0, -1.0),
+                    ReplicateDir::Above => Affine::translate((0.0, 2.0 * b.y0 - gap_mm)) * Affine::scale_non_uniform(1.0, -1.0),
+                };
+                vec![m]
+            }
+            ReplicateOp::Grid { rows, cols, gap_x_mm, gap_y_mm } => {
+                let (rows, cols) = (rows.max(1), cols.max(1));
+                let mut out = Vec::with_capacity(rows * cols);
+                for r in 0..rows {
+                    for c in 0..cols {
+                        if r == 0 && c == 0 {
+                            continue;
+                        }
+                        out.push(Affine::translate((c as f64 * (w + gap_x_mm), r as f64 * (h + gap_y_mm))));
+                    }
+                }
+                if out.is_empty() {
+                    return Err(EditError::Invalid("Grid must have at least 2 cells"));
+                }
+                out
+            }
+            ReplicateOp::FillPage { gap_x_mm, gap_y_mm } => {
+                let page = &self.doc.page;
+                let m = page.margin_mm;
+                let area_w = (page.width_mm - 2.0 * m).max(0.0);
+                let area_h = (page.height_mm - 2.0 * m).max(0.0);
+                if w <= 1e-6 || h <= 1e-6 || area_w < w || area_h < h {
+                    return Err(EditError::NotApplicable("Selection is larger than the cuttable page area"));
+                }
+                let step_x = (w + gap_x_mm).max(w);
+                let step_y = (h + gap_y_mm).max(h);
+                let cols = ((area_w + gap_x_mm) / step_x).floor().max(1.0) as usize;
+                let rows = ((area_h + gap_y_mm) / step_y).floor().max(1.0) as usize;
+                let base_dx = m - b.x0;
+                let base_dy = m - b.y0;
+                let mut out = Vec::with_capacity(rows * cols);
+                for r in 0..rows {
+                    for c in 0..cols {
+                        out.push(Affine::translate((base_dx + c as f64 * step_x, base_dy + r as f64 * step_y)));
+                    }
+                }
+                out
+            }
+        };
+
+        self.apply(label, |d, sel| {
+            let originals: Vec<Object> = d.objects.iter().filter(|o| sel.contains(&o.id)).cloned().collect();
+            if originals.is_empty() {
+                return Err(EditError::EmptySelection);
+            }
+            let mut added = Vec::new();
+            if let ReplicateOp::FillPage { .. } = op {
+                let first_m = transforms[0];
+                for o in d.objects.iter_mut().filter(|o| sel.contains(&o.id)) {
+                    o.transform = first_m * o.transform;
+                }
+                for &m in &transforms[1..] {
+                    for src in &originals {
+                        let copy = clone_transformed(src, m);
+                        added.push(copy.id);
+                        d.objects.push(copy);
+                    }
+                }
+            } else {
+                for m in transforms {
+                    for src in &originals {
+                        let copy = clone_transformed(src, m);
+                        added.push(copy.id);
+                        d.objects.push(copy);
+                    }
+                }
+            }
+            if !added.is_empty() {
+                *sel = added.clone();
+            }
+            Ok(added)
+        })
+    }
 }
 
 #[cfg(test)]
@@ -426,5 +562,37 @@ mod tests {
         assert_eq!(before, 5);
         assert_eq!(after, 4);
         assert_eq!(ed2.undo().as_deref(), Some("Simplify Path"));
+    }
+
+    #[test]
+    fn replicate_step_mirror_grid_and_fill_page_work_as_single_undo_steps() {
+        let (mut ed, id) = editor_with_square();
+        ed.selection = vec![id];
+        ed.replicate_selected(ReplicateOp::Step { dir: ReplicateDir::Right, gap_mm: 2.0 }).unwrap();
+        assert_eq!(ed.doc.objects.len(), 2);
+        let b1 = ed.doc.objects[1].bounds().unwrap();
+        assert!((b1.x0 - 12.0).abs() < 1e-6 && (b1.x1 - 22.0).abs() < 1e-6);
+        assert_eq!(ed.undo().as_deref(), Some("Duplicate"));
+        assert_eq!(ed.doc.objects.len(), 1);
+
+        ed.selection = vec![id];
+        ed.replicate_selected(ReplicateOp::Mirror { dir: ReplicateDir::Below, gap_mm: 4.0 }).unwrap();
+        assert_eq!(ed.doc.objects.len(), 2);
+        let bm = ed.doc.objects[1].bounds().unwrap();
+        assert!((bm.y0 - 14.0).abs() < 1e-6 && (bm.y1 - 24.0).abs() < 1e-6);
+        assert_eq!(ed.undo().as_deref(), Some("Mirror Copy"));
+
+        ed.selection = vec![id];
+        ed.replicate_selected(ReplicateOp::Grid { rows: 2, cols: 3, gap_x_mm: 2.0, gap_y_mm: 2.0 }).unwrap();
+        assert_eq!(ed.doc.objects.len(), 6);
+        assert_eq!(ed.undo().as_deref(), Some("Replicate Grid"));
+
+        // 10×10 square on default 304.8×304.8 page with 6.35mm margin (292.1×292.1 cuttable):
+        // with 2mm gap, step = 12mm -> floor((292.1 + 2)/12) = 24 per side => 576 total.
+        ed.selection = vec![id];
+        ed.replicate_selected(ReplicateOp::FillPage { gap_x_mm: 2.0, gap_y_mm: 2.0 }).unwrap();
+        assert_eq!(ed.doc.objects.len(), 24 * 24);
+        assert_eq!(ed.undo().as_deref(), Some("Fill Page"));
+        assert_eq!(ed.doc.objects.len(), 1);
     }
 }

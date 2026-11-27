@@ -24,7 +24,7 @@ protocol — no Windows, no Wine, no virtual machine.
 |---|---|---|
 | Design canvas (pan, zoom, grid, snap, cut border) | ✅ Implemented | |
 | Drawing tools (select, edit points, rectangle, ellipse, line, polyline, freehand) | ✅ Implemented | Freehand input is fitted to smooth Béziers; Edit Points supports live node/handle dragging, insertion, deletion, Break Path, Corner/Smooth, Make Flat/Curve, and Simplify |
-| Selection & transforms (move, scale, rotate, flip, align, distribute) | ✅ Implemented | Handles + numeric entry, single undo step per gesture |
+| Selection, Transform & Replicate | ✅ Implemented | Handles + numeric X/Y/W/H, aspect lock, rotate, flip, align, distribute; Replicate panel (directional duplicates, mirror copies, rows/columns, grid array, Fill Page) |
 | Group / ungroup, compound paths, group by colour | ✅ Implemented | |
 | Boolean weld / subtract / intersect | ✅ Implemented | |
 | Offset (round / miter / bevel, internal & external) | ✅ Implemented | |
@@ -34,10 +34,10 @@ protocol — no Windows, no Wine, no virtual machine.
 | Raster images & Auto-Trace | ✅ Implemented | PNG/JPEG placement and rendering, images embedded in `.studio3` and `.craft` files, page background image, and Auto-Trace (`Trace` & `Trace Outer Edge` with threshold, smoothing, and live preview) |
 | Knife & Eraser tools | ✅ Implemented | Straight (`Shift`-snap) / freehand (`Ctrl`-drag) Knife slicing; Round / Square brush Eraser subtraction preserving `EvenOdd` holes |
 | Warp / nest tools | ❌ Not yet implemented | |
-| `.studio3` / `.studio` read | ✅ Implemented | Validated against 176 real-world files, including 612 placed images (see tests) |
+| `.studio3` / `.studio` read | ✅ Implemented | Validated against 178 real-world and 39 stock files, including solid/gradient/pattern fills, strokes, placed images, and embedded preview fidelity |
 | `.studio3` / `.studio` write | ❌ Not yet implemented | Use the native `.ssrs` project format, `.craft`, or SVG/DXF export |
 | `.craft` (Studio_to_SVG project) read & write | ✅ Implemented | Shapes, text, groups, images, paper and registration marks |
-| SVG / SVGZ import & export | ✅ Implemented | Including gzip and UTF-8/UTF-16 variants, embedded images, background and registration marks |
+| SVG / SVGZ import & export | ✅ Implemented | Including gzip and UTF-8/UTF-16 variants, gradients, patterns, dashed strokes, embedded images, background and registration marks |
 | DXF import & export | ✅ Implemented | |
 | Native project format (`.ssrs`) | ✅ Implemented | Lossless JSON format, versioned |
 | GPGL job generation | ✅ Implemented | Force, speed, passes, blade depth (`TC`), blade offset, overcut, perforation dashes, media clipping, multi-stage tool/pause sequences, cut-order optimisation; images are never cut |

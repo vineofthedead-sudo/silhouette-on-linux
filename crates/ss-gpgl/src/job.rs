@@ -721,4 +721,21 @@ mod tests {
         assert_eq!(sim.tool_holder, Some(2));
         assert_eq!(sim.homes, 2); // 1 pause between stages + 1 EndAction::Home
     }
+
+    #[test]
+    fn perforated_stage_emits_dashed_strokes() {
+        let mut p = BezPath::new();
+        p.move_to((0.0, 0.0));
+        p.line_to((20.0, 0.0));
+        let stages = vec![JobStage {
+            paths: vec![p],
+            tool: ToolSettings::blade(),
+            perforation: Some(Perforation { cut_mm: 2.0, gap_mm: 2.0 }),
+            pause_after: false,
+        }];
+        let job = encode_stages(&stages, &JobSettings::default()).unwrap();
+        let sim = crate::simulate(&job.bytes);
+        assert!(sim.errors.is_empty());
+        assert_eq!(sim.strokes.len(), 5);
+    }
 }

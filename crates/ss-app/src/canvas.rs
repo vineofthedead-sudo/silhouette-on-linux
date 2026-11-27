@@ -181,7 +181,7 @@ impl Default for Canvas {
 }
 
 fn content_key(o: &Object, h: &mut DefaultHasher) {
-    (o.style.fill.is_some() || o.style.fill_pattern.is_some()).hash(h);
+    (o.style.fill.is_some() || o.style.fill_gradient.is_some() || o.style.fill_pattern.is_some()).hash(h);
     for c in o.transform.as_coeffs() {
         c.to_bits().hash(h);
     }
@@ -473,7 +473,7 @@ impl Canvas {
                 .flat_map(|l| l.points.iter())
                 .fold(None::<Rect>, |acc, p| Some(acc.map_or(Rect::from_points(*p, *p), |r| r.union_pt(*p))));
             let (mut fill_verts, mut fill_indices) = (Vec::new(), Vec::new());
-            if o.style.fill.is_some() || o.style.fill_pattern.is_some() {
+            if o.style.fill.is_some() || o.style.fill_gradient.is_some() || o.style.fill_pattern.is_some() {
                 for p in o.page_paths() {
                     let (v, idx) = ss_geom::triangulate::triangulate_path(&p, o.fill_rule(), RENDER_TOLERANCE);
                     let base = fill_verts.len() as u32;
@@ -1316,6 +1316,32 @@ impl Canvas {
                     }));
                     mesh.indices.extend_from_slice(&c.fill_indices);
                     shapes.push(Shape::mesh(mesh));
+                } else if let Some(grad) = &o.style.fill_gradient
+                    && !grad.stops.is_empty()
+                    && let Some(raw_b) = c.bbox
+                {
+                    let mut mesh = egui::Mesh::default();
+                    let center = raw_b.center();
+                    let rad = grad.angle_deg.to_radians();
+                    let dir = Vec2::new(rad.cos(), rad.sin());
+                    let half_span = (raw_b.width() * dir.x.abs() + raw_b.height() * dir.y.abs()) * 0.5;
+                    let radius = (raw_b.width().hypot(raw_b.height()) * 0.5).max(1e-6);
+                    mesh.vertices.extend(c.fill_verts.iter().map(|&pt| {
+                        let t = if grad.radial {
+                            (pt.distance(center) / radius).clamp(0.0, 1.0)
+                        } else if half_span > 1e-6 {
+                            (((pt - center).dot(dir) / (2.0 * half_span)) + 0.5).clamp(0.0, 1.0)
+                        } else {
+                            0.5
+                        };
+                        egui::epaint::Vertex {
+                            pos: v.to_screen(origin, m * pt),
+                            uv: egui::epaint::WHITE_UV,
+                            color: color32(grad.sample(t)),
+                        }
+                    }));
+                    mesh.indices.extend_from_slice(&c.fill_indices);
+                    shapes.push(Shape::mesh(mesh));
                 } else if let Some(fill) = o.style.fill
                     && fill.a > 0
                 {
@@ -1346,12 +1372,28 @@ impl Canvas {
                     1.0
                 };
                 let stroke = Stroke::new(width, color);
+                let dash_pair: Option<(f32, f32)> = if !o.style.dash_mm.is_empty() {
+                    let on = (o.style.dash_mm[0] as f32 * v.zoom).clamp(2.0, 40.0);
+                    let off = (o.style.dash_mm.get(1).copied().unwrap_or(o.style.dash_mm[0]) as f32 * v.zoom).clamp(2.0, 40.0);
+                    Some((on, off))
+                } else if o.cut == CutAction::Perforate {
+                    Some(((2.0 * v.zoom).clamp(2.0, 40.0), (1.0 * v.zoom).clamp(2.0, 40.0)))
+                } else {
+                    None
+                };
                 for l in &c.lines {
-                    let pts = self.screen_points(origin, &l.points, m);
+                    let mut pts = self.screen_points(origin, &l.points, m);
                     if pts.len() < 2 {
                         continue;
                     }
-                    shapes.push(if l.closed { Shape::closed_line(pts, stroke) } else { Shape::line(pts, stroke) });
+                    if let Some((on, off)) = dash_pair {
+                        if l.closed {
+                            pts.push(pts[0]);
+                        }
+                        shapes.extend(Shape::dashed_line(&pts, stroke, on, off));
+                    } else {
+                        shapes.push(if l.closed { Shape::closed_line(pts, stroke) } else { Shape::line(pts, stroke) });
+                    }
                 }
             }
         }

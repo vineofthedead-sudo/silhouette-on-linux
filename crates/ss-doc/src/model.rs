@@ -121,18 +121,56 @@ pub struct PatternFill {
     pub transform: Option<[f64; 6]>,
 }
 
+/// A linear or radial colour gradient fill.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GradientFill {
+    /// Sorted `(offset_0_to_1, color)` stops.
+    pub stops: Vec<(f64, Rgba)>,
+    /// Linear gradient direction in degrees (`0` = left-to-right, `90` = top-to-bottom).
+    #[serde(default)]
+    pub angle_deg: f64,
+    #[serde(default)]
+    pub radial: bool,
+}
+
+impl GradientFill {
+    /// Samples the gradient at normalized position `t` in `0.0..=1.0`.
+    pub fn sample(&self, t: f64) -> Rgba {
+        let t = t.clamp(0.0, 1.0);
+        let Some(first) = self.stops.first() else { return Rgba::TRANSPARENT };
+        if t <= first.0 || self.stops.len() == 1 {
+            return first.1;
+        }
+        for w in self.stops.windows(2) {
+            let (t0, c0) = w[0];
+            let (t1, c1) = w[1];
+            if t <= t1 {
+                let u = if (t1 - t0).abs() < 1e-9 { 0.0 } else { (t - t0) / (t1 - t0) };
+                let lerp = |a: u8, b: u8| -> u8 { (f64::from(a) + (f64::from(b) - f64::from(a)) * u).round().clamp(0.0, 255.0) as u8 };
+                return Rgba { r: lerp(c0.r, c1.r), g: lerp(c0.g, c1.g), b: lerp(c0.b, c1.b), a: lerp(c0.a, c1.a) };
+            }
+        }
+        self.stops.last().map_or(Rgba::TRANSPARENT, |s| s.1)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Style {
     pub stroke: Rgba,
     pub stroke_width_mm: f64,
     pub fill: Option<Rgba>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fill_gradient: Option<GradientFill>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fill_pattern: Option<Box<PatternFill>>,
+    /// Dash lengths in mm (`[cut, gap, ...]`). Empty means solid.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dash_mm: Vec<f64>,
 }
 
 impl Default for Style {
     fn default() -> Self {
-        Self { stroke: Rgba::RED, stroke_width_mm: 0.25, fill: None, fill_pattern: None }
+        Self { stroke: Rgba::RED, stroke_width_mm: 0.25, fill: None, fill_gradient: None, fill_pattern: None, dash_mm: Vec::new() }
     }
 }
 

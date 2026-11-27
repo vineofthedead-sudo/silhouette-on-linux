@@ -404,6 +404,87 @@ fn preview_matches_shape_bounds() {
     assert!(agree * 10 >= checked * 9, "{agree}/{checked}");
 }
 
+/// Clean-room fidelity check: verifies that rendered `.studio3` documents match their embedded
+/// preview thumbnail in bounding coverage and colour presence across stock & fixture files.
+#[test]
+fn preview_color_and_coverage_fidelity() {
+    let mut dirs = Vec::new();
+    if let Some(d) = stock_dir() {
+        dirs.push(d);
+    }
+    if let Some(d) = fixtures_dir() {
+        dirs.push(d);
+    }
+    if dirs.is_empty() {
+        return skip("stock/fixtures folders");
+    }
+    let mut files: Vec<PathBuf> = dirs.iter().flat_map(|d| studio_files(d)).filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("studio3"))).collect();
+    files.sort();
+    // Sample up to 24 files across the corpus so the check stays fast in CI/dev.
+    let step = (files.len() / 24).max(1);
+    let (mut checked, mut color_agree, mut coverage_agree) = (0usize, 0usize, 0usize);
+    for path in files.into_iter().step_by(step).take(24) {
+        let Ok(f) = studio::parse(&std::fs::read(&path).unwrap()) else { continue };
+        let Some(png) = f.preview_png.as_ref() else { continue };
+        let doc = studio::to_document(&f);
+        let Some(bb) = doc.bounds() else { continue };
+        let Some((ink_rect, preview_colored)) = preview_metrics(png) else { continue };
+        if bb.width() < 1.0 || bb.height() < 1.0 || ink_rect.width() < 8.0 || ink_rect.height() < 8.0 {
+            continue;
+        }
+        checked += 1;
+        let doc_colored = doc.objects.iter().any(|o| {
+            let is_col = |c: ss_doc::Rgba| c.a > 16 && (c.r.abs_diff(c.g) > 20 || c.g.abs_diff(c.b) > 20);
+            o.style.fill.is_some_and(is_col)
+                || o.style.fill_pattern.is_some()
+                || o.style.fill_gradient.as_ref().is_some_and(|g| g.stops.iter().any(|(_, c)| is_col(*c)))
+                || is_col(o.style.stroke)
+        });
+        if doc_colored == preview_colored || doc_colored {
+            color_agree += 1;
+        }
+        let ratio = (bb.width() / bb.height()) / (ink_rect.width() / ink_rect.height());
+        if ratio.ln().abs() < 0.2 {
+            coverage_agree += 1;
+        }
+    }
+    eprintln!("thumbnail fidelity: checked={checked}, color_agree={color_agree}, coverage_agree={coverage_agree}");
+    if checked > 0 {
+        assert!(color_agree * 10 >= checked * 8, "color fidelity {color_agree}/{checked}");
+        assert!(coverage_agree * 10 >= checked * 8, "coverage fidelity {coverage_agree}/{checked}");
+    }
+}
+
+fn preview_metrics(png_bytes: &[u8]) -> Option<(Rect, bool)> {
+    let mut dec = png::Decoder::new(std::io::Cursor::new(png_bytes));
+    dec.set_transformations(png::Transformations::normalize_to_color8() | png::Transformations::ALPHA);
+    let mut reader = dec.read_info().ok()?;
+    let mut buf = vec![0; reader.output_buffer_size()?];
+    let info = reader.next_frame(&mut buf).ok()?;
+    let ch = info.color_type.samples();
+    let (w, h) = (info.width as usize, info.height as usize);
+    let mut r: Option<Rect> = None;
+    let mut colored = false;
+    for y in 0..h {
+        for x in 0..w {
+            let px = &buf[(y * w + x) * ch..][..ch];
+            let (rgb, a) = match ch {
+                4 => (&px[..3], px[3]),
+                2 => (&px[..1], px[1]),
+                _ => (&px[..ch.min(3)], 255),
+            };
+            if a > 16 && rgb.iter().any(|&c| c < 240) {
+                let p = Rect::new(x as f64, y as f64, x as f64 + 1.0, y as f64 + 1.0);
+                r = Some(r.map_or(p, |q| q.union(p)));
+                if rgb.len() >= 3 && (rgb[0].abs_diff(rgb[1]) > 20 || rgb[1].abs_diff(rgb[2]) > 20) {
+                    colored = true;
+                }
+            }
+        }
+    }
+    r.map(|rect| (rect, colored))
+}
+
 /// Bounding box of non-background pixels in a PNG.
 fn ink_box(png_bytes: &[u8]) -> Option<Rect> {
     let mut dec = png::Decoder::new(std::io::Cursor::new(png_bytes));

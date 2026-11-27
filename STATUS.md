@@ -11,7 +11,7 @@ tool rail, collapsible right dock and mocked Send panel.
 | V5 tool rail and dock | Working | `Edit Points`, `Knife`, `Eraser`, and `Auto-Trace` unit-tested in `ss-geom` and `ss-doc`; wired in `ss-app` |
 | Text tool | Working | `ss-text` unit tests; created, edited and restyled in the GUI |
 | Images, background, Auto-Trace | Working | Real-file tests (612 placed images in 137 files); `Auto-Trace` contour extraction tested on synthetic bitmaps |
-| `.studio3` / `.studio` reading | Stable | 176 real-world and stock files compared against reference SVGs |
+| `.studio3` / `.studio` reading | Stable | 178 real-world and 39 stock files parsed; gradients, patterns, strokes, and thumbnail fidelity verified against embedded previews |
 | `.craft` read/write | Working | Round-trip tests; checked against the companion project's own code |
 | SVG / DXF | Stable | Round-trip tests |
 | GPGL encoding | Stable in tests | Golden tests replayed through the interpreter |
@@ -37,7 +37,7 @@ mode, and double-clicking again returns to Select.
 | Knife | K | Working: straight-line slice (`Shift` snaps 45°) or `Ctrl`-drag freehand slice; splits closed and open unlocked paths into independent objects as one undo step (`ss_geom::tools::knife_split`) |
 | Eraser | X | Working: Round or Square brush (`Tool Options` radius/shape); subtracts swept brush via `i_overlay` preserving `EvenOdd` holes and trimming open paths as one undo step (`ss_geom::tools::erase`) |
 
-The right dock is a set of collapsible panels: Tool Options (contextual for Edit Points, Knife, Eraser), Page Setup (open), Send (open), Auto-Trace, Properties and Layers.
+The right dock is a set of collapsible panels: Tool Options (contextual for Edit Points, Knife, Eraser), Page Setup (open), Send (open), Auto-Trace, Properties (with Transform X/Y/W/H, aspect lock, Rotate, Flip H/V), Replicate (directional duplicate, mirror copy, row/col, grid array, Fill Page), and Layers.
 
 - **Auto-Trace**: traces any selected placed raster image into `kurbo::BezPath` cut contours (`ss_geom::trace::trace_mask`), with threshold, corner smoothing, speck-area filter, invert toggle, live canvas preview (`All lines` / `Outer edge`), and `Trace` / `Trace Outer Edge` actions placing the result onto the active layer as one undo step.
 

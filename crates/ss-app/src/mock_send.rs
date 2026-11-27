@@ -283,7 +283,7 @@ impl MockSendPanel {
             return vec![JobStage {
                 paths,
                 tool: self.tool_settings(self.action, self.output_tool),
-                perforation: None,
+                perforation: (self.action == CutAction::Perforate).then_some(ss_gpgl::Perforation { cut_mm: 2.0, gap_mm: 1.0 }),
                 pause_after: false,
             }];
         }
@@ -307,7 +307,7 @@ impl MockSendPanel {
                 stages.push(JobStage {
                     paths,
                     tool: self.tool_settings(settings.action, settings.tool),
-                    perforation: None,
+                    perforation: (settings.action == CutAction::Perforate).then_some(ss_gpgl::Perforation { cut_mm: 2.0, gap_mm: 1.0 }),
                     pause_after: settings.pause_after,
                 });
             }
@@ -558,6 +558,7 @@ impl MockSendPanel {
                 ui.radio_value(&mut self.action, CutAction::NoCut, "No Cut");
                 ui.radio_value(&mut self.action, CutAction::Cut, "Cut");
                 ui.radio_value(&mut self.action, CutAction::CutEdge, "Cut Edge");
+                ui.radio_value(&mut self.action, CutAction::Perforate, "Perforate");
                 ui.radio_value(&mut self.action, CutAction::Sketch, "Sketch");
             });
         } else {
@@ -621,7 +622,7 @@ impl MockSendPanel {
                         .selected_text(cut_action_label(settings.action))
                         .width(72.0)
                         .show_ui(ui, |ui| {
-                            for action in [CutAction::Cut, CutAction::CutEdge, CutAction::Sketch, CutAction::NoCut] {
+                            for action in [CutAction::Cut, CutAction::CutEdge, CutAction::Perforate, CutAction::Sketch, CutAction::NoCut] {
                                 ui.selectable_value(&mut settings.action, action, cut_action_label(action));
                             }
                         });
