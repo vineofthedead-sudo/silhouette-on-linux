@@ -39,6 +39,42 @@ pub fn parse_registration(reply: &[u8]) -> Result<(), String> {
     }
 }
 
+/// Tool detected by the optical/magnet carriage sensor (`ESC 0x15` / `ESC 0x16` on Cameo 4+).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DetectedTool {
+    Empty,
+    ManualBlade,
+    AutoBlade,
+    UnknownCode(u32),
+    Unrecognized(String),
+}
+
+impl std::fmt::Display for DetectedTool {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Empty => f.write_str("Empty"),
+            Self::ManualBlade => f.write_str("Manual / Ratchet Blade"),
+            Self::AutoBlade => f.write_str("AutoBlade"),
+            Self::UnknownCode(255) => f.write_str("Unrecognized / Inserting (255)"),
+            Self::UnknownCode(c) => write!(f, "Tool code {c}"),
+            Self::Unrecognized(s) => f.write_str(s),
+        }
+    }
+}
+
+/// Parses the optical carriage sensor reply (e.g. `" 0, 0\x03"`, `" 2, 0\x03"`, `"   0\x03"`).
+pub fn parse_tool_sensor(reply: &[u8]) -> DetectedTool {
+    let s = clean(reply);
+    let first = s.split(',').next().unwrap_or("").trim();
+    match first.parse::<u32>() {
+        Ok(0) => DetectedTool::Empty,
+        Ok(1) => DetectedTool::ManualBlade,
+        Ok(2) => DetectedTool::AutoBlade,
+        Ok(code) => DetectedTool::UnknownCode(code),
+        Err(_) => DetectedTool::Unrecognized(s),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -50,8 +86,14 @@ mod tests {
         assert_eq!(parse_status(b" 2 \x03"), Status::Unloaded);
         assert_eq!(parse_status(b"9\x03"), Status::Unknown("9".into()));
         assert_eq!(parse_firmware(b" V3.00   \x03").as_deref(), Some("V3.00"));
+        assert_eq!(parse_firmware(b"CAMEO 4 V1.20    \x03").as_deref(), Some("CAMEO 4 V1.20"));
         assert_eq!(parse_firmware(b"\x03"), None);
         assert_eq!(parse_registration(b"    0\x03"), Ok(()));
         assert_eq!(parse_registration(b"    1\x03"), Err("1".into()));
+        assert_eq!(parse_tool_sensor(b" 0, 0\x03"), DetectedTool::Empty);
+        assert_eq!(parse_tool_sensor(b" 1, 0\x03"), DetectedTool::ManualBlade);
+        assert_eq!(parse_tool_sensor(b" 2, 0\x03"), DetectedTool::AutoBlade);
+        assert_eq!(parse_tool_sensor(b" 255, 0\x03"), DetectedTool::UnknownCode(255));
+        assert_eq!(parse_tool_sensor(b"   0\x03"), DetectedTool::Empty);
     }
 }

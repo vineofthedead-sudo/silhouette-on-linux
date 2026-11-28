@@ -123,11 +123,23 @@ impl Registration {
     }
 }
 
+/// GPGL wire dialect for a job.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Protocol {
+    /// Era 1 / Classic single-carriage GPGL (Cameo 1, Cameo 2, Portrait 1, SD, Craft Robo).
+    #[default]
+    Classic,
+    /// Era 3 dual-carriage GPGL with AutoBlade `TJ`/`TF` depth and `L0`/`J0` footer (Cameo 4).
+    Era3,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct JobSettings {
     /// Media width (across the carriage) and height (feed direction) in mm.
     pub media_mm: (f64, f64),
     pub tool: ToolSettings,
+    /// Wire dialect (`Classic` for Cameo 1/2, `Era3` for Cameo 4).
+    pub protocol: Protocol,
     /// Grip the media harder while feeding (`FY`).
     pub track_enhancing: bool,
     pub end: EndAction,
@@ -146,6 +158,7 @@ impl Default for JobSettings {
         Self {
             media_mm: (304.8, 304.8),
             tool: ToolSettings::blade(),
+            protocol: Protocol::Classic,
             track_enhancing: false,
             end: EndAction::Home,
             tolerance_mm: 0.02,
@@ -437,7 +450,30 @@ fn prepare_lines(paths: &[BezPath], s: &JobSettings, area: Rect, media: Rect) ->
     Ok(lines)
 }
 
-fn emit_tool_settings(w: &mut Writer, t: &ToolSettings) {
+fn emit_era3_tool_setup(w: &mut Writer, t: &ToolSettings) {
+    let holder = t.tool_holder.unwrap_or(1);
+    let offset = if t.tool == Tool::Pen { 0 } else { t.blade_offset };
+    let overcut = if t.tool == Tool::Pen { 0 } else { (t.overcut_mm * 10.0).round() as u32 };
+    let depth = t.blade_depth.unwrap_or(0).min(10);
+    w.cmd(&format!("J{holder}"));
+    w.cmd(&format!("FX{},{holder}", t.force));
+    w.cmd("TJ0");
+    w.cmd(&format!("!{},{holder}", t.speed));
+    w.cmd(&format!("FC0,1,{holder}"));
+    w.cmd(&format!("FE{overcut},{holder}"));
+    w.cmd(&format!("FF1,0,{holder}"));
+    w.cmd(&format!("FF1,1,{holder}"));
+    w.cmd(&format!("FX{},{holder}", t.force));
+    w.cmd(&format!("TJ{depth}"));
+    w.cmd(&format!("FC{offset},1,{holder}"));
+    w.cmd(&format!("TF{depth},{holder}"));
+}
+
+fn emit_tool_settings(w: &mut Writer, protocol: Protocol, t: &ToolSettings) {
+    if protocol == Protocol::Era3 {
+        emit_era3_tool_setup(w, t);
+        return;
+    }
     let suffix = t.tool_holder.map(|n| format!(",{n}")).unwrap_or_default();
     if let Some(n) = t.tool_holder {
         w.cmd(&format!("J{n}"));
@@ -455,28 +491,35 @@ fn emit_tool_settings(w: &mut Writer, t: &ToolSettings) {
 }
 
 fn emit_header(w: &mut Writer, media: Rect, s: &JobSettings, initial_tool: &ToolSettings) -> Option<usize> {
-    let (mh, mw) = yx(Point::new(media.x1, media.y1));
-    if let Some(n) = initial_tool.tool_holder {
-        w.cmd(&format!("J{n}"));
+    if s.protocol == Protocol::Era3 {
+        w.cmd("TG1");
+        w.cmd("FN0");
+        w.cmd("TB50,0");
+        emit_era3_tool_setup(w, initial_tool);
+    } else {
+        let (mh, mw) = yx(Point::new(media.x1, media.y1));
+        if let Some(n) = initial_tool.tool_holder {
+            w.cmd(&format!("J{n}"));
+        }
+        w.cmd("FN0");
+        w.cmd("TB50,0");
+        w.cmd(&format!("FU{mh},{mw}"));
+        w.cmd("\\0,0");
+        w.cmd(&format!("Z{mh},{mw}"));
+        w.cmd("&100,100,100");
+        let offset = if initial_tool.tool == Tool::Pen { 0 } else { initial_tool.blade_offset };
+        match initial_tool.tool_holder {
+            Some(n) => w.cmd(&format!("FC{offset},1,{n}")),
+            None => w.cmd(&format!("FC{offset}")),
+        }
+        w.cmd(&format!("FY{}", u8::from(s.track_enhancing)));
+        let suffix = initial_tool.tool_holder.map(|n| format!(",{n}")).unwrap_or_default();
+        if let Some(d) = initial_tool.blade_depth {
+            w.cmd(&format!("TC{d}{suffix}"));
+        }
+        w.cmd(&format!("FX{}{suffix}", initial_tool.force));
+        w.cmd(&format!("!{}{suffix}", initial_tool.speed));
     }
-    w.cmd("FN0");
-    w.cmd("TB50,0");
-    w.cmd(&format!("FU{mh},{mw}"));
-    w.cmd("\\0,0");
-    w.cmd(&format!("Z{mh},{mw}"));
-    w.cmd("&100,100,100");
-    let offset = if initial_tool.tool == Tool::Pen { 0 } else { initial_tool.blade_offset };
-    match initial_tool.tool_holder {
-        Some(n) => w.cmd(&format!("FC{offset},1,{n}")),
-        None => w.cmd(&format!("FC{offset}")),
-    }
-    w.cmd(&format!("FY{}", u8::from(s.track_enhancing)));
-    let suffix = initial_tool.tool_holder.map(|n| format!(",{n}")).unwrap_or_default();
-    if let Some(d) = initial_tool.blade_depth {
-        w.cmd(&format!("TC{d}{suffix}"));
-    }
-    w.cmd(&format!("FX{}{suffix}", initial_tool.force));
-    w.cmd(&format!("!{}{suffix}", initial_tool.speed));
     let mut registration_end = None;
     if let Some(r) = s.registration {
         w.cmd("TB50,0");
@@ -532,6 +575,18 @@ fn emit_lines(w: &mut Writer, lines: &[Polyline], t: &ToolSettings, perf: Option
 }
 
 fn emit_footer(w: &mut Writer, s: &JobSettings) {
+    if s.protocol == Protocol::Era3 {
+        w.cmd("L0");
+        w.cmd("\\0,0");
+        w.cmd("M0,0");
+        w.cmd("J0");
+        match s.end {
+            EndAction::Home => w.cmd("H"),
+            EndAction::FeedOut { mm } => w.cmd(&format!("M{},0", to_units(mm.max(0.0)))),
+            EndAction::Stay => {}
+        }
+        return;
+    }
     w.cmd("&1,1,1");
     match s.end {
         EndAction::Home => w.cmd("H"),
@@ -583,7 +638,7 @@ pub fn encode_stages(stages: &[JobStage], s: &JobSettings) -> Result<Job, Encode
     let mut pos = Point::ZERO;
     for (idx, (st, lines)) in prepared.iter().enumerate() {
         if idx > 0 {
-            emit_tool_settings(&mut w, &st.tool);
+            emit_tool_settings(&mut w, s.protocol, &st.tool);
         }
         emit_lines(&mut w, lines, &st.tool, st.perforation, &mut pos, &mut stats);
         if st.pause_after && idx + 1 < prepared.len() {
@@ -737,5 +792,50 @@ mod tests {
         let sim = crate::simulate(&job.bytes);
         assert!(sim.errors.is_empty());
         assert_eq!(sim.strokes.len(), 5);
+    }
+
+    #[test]
+    fn era3_cameo4_emits_verified_autoblade_header_and_footer() {
+        let mut p = BezPath::new();
+        p.move_to((16.0, 15.0));
+        p.line_to((26.0, 15.0));
+        let settings = JobSettings {
+            protocol: Protocol::Era3,
+            tool: ToolSettings {
+                tool: Tool::Blade,
+                force: 30,
+                speed: 4,
+                passes: 1,
+                blade_offset: 18,
+                overcut_mm: 0.0,
+                tool_holder: Some(1),
+                blade_depth: Some(3),
+            },
+            ..JobSettings::default()
+        };
+        let job = encode(&[p], &settings).unwrap();
+        let text = String::from_utf8_lossy(&job.bytes);
+        assert!(text.starts_with("TG1\x03FN0\x03TB50,0\x03J1\x03FX30,1\x03TJ0\x03!4,1\x03FC0,1,1\x03FE0,1\x03FF1,0,1\x03FF1,1,1\x03FX30,1\x03TJ3\x03FC18,1,1\x03TF3,1\x03"));
+        assert!(text.ends_with("L0\x03\\0,0\x03M0,0\x03J0\x03H\x03"));
+
+        let sim = crate::simulate(&job.bytes);
+        assert!(sim.errors.is_empty(), "{:?}", sim.errors);
+        assert!(sim.unknown.is_empty(), "{:?}", sim.unknown);
+        assert_eq!(sim.blade_depth, Some(3));
+        assert_eq!(sim.tool_holder, Some(0)); // deselected by J0 in footer
+        assert!(sim.homed);
+    }
+
+    #[test]
+    fn classic_era1_omits_era3_prefixes() {
+        let mut p = BezPath::new();
+        p.move_to((10.0, 10.0));
+        p.line_to((20.0, 10.0));
+        let job = encode(&[p], &JobSettings::default()).unwrap();
+        let text = String::from_utf8_lossy(&job.bytes);
+        assert!(!text.contains("TG1\x03"));
+        assert!(!text.contains("TJ"));
+        assert!(!text.contains("J1\x03"));
+        assert!(text.ends_with("&1,1,1\x03H\x03"));
     }
 }

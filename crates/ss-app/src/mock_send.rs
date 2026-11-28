@@ -244,6 +244,7 @@ impl MockSendPanel {
             off_media: OffMedia::Error,
             perforation: None,
             registration: self.registration(editor),
+            protocol: ss_gpgl::Protocol::Classic,
         }
     }
 

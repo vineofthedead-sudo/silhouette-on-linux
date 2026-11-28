@@ -20,6 +20,12 @@ struct Cli {
 enum Cmd {
     /// List connected USB cutters.
     Devices,
+    /// Query firmware, status, and optical tool sensors on a connected USB cutter.
+    Probe {
+        /// Device index from `ss-cli devices`.
+        #[arg(default_value_t = 0)]
+        index: usize,
+    },
     /// Show page, layer and object information about design files.
     Inspect {
         /// Design files (.studio3, .studio, .svg, .svgz, .dxf, .craft, .ssrs).
@@ -218,6 +224,42 @@ fn devices() -> Result<()> {
     }
     for (i, d) in devs.iter().enumerate() {
         println!("{i}: {} ({:04x}:{:04x}, bus {} address {})", d.name(), d.vendor_id, d.product_id, d.bus, d.address);
+    }
+    Ok(())
+}
+
+fn probe(index: usize) -> Result<()> {
+    let devs = ss_device::enumerate()?;
+    let Some(info) = devs.get(index) else {
+        if devs.is_empty() {
+            bail!("No cutters found. Check the USB cable, power, and the udev rule.");
+        }
+        bail!("no cutter #{index}; `ss-cli devices` lists {}", devs.len());
+    };
+    let transport = UsbTransport::open(info).with_context(|| format!("cannot open {}", info.name()))?;
+    let mut cutter = ss_device::Cutter::new(transport);
+    let era = info.model.map_or(ss_device::ProtocolEra::Classic, |m| m.era);
+    let firmware = if era == ss_device::ProtocolEra::Era3 {
+        cutter.wakeup().or_else(|_| cutter.firmware())?
+    } else {
+        cutter.firmware()?
+    };
+    let status = cutter.status()?;
+    println!("device:   {} ({:04x}:{:04x})", info.name(), info.vendor_id, info.product_id);
+    println!("era:      {era:?}");
+    println!("firmware: {}", firmware.as_deref().unwrap_or("<none>"));
+    println!("status:   {status:?}");
+    if era == ss_device::ProtocolEra::Era3 || info.model.is_some_and(|m| m.two_tools) {
+        match cutter.query_tool(1) {
+            Ok(t) => println!("tool 1:   {t:?}"),
+            Err(e) => println!("tool 1:   error ({e})"),
+        }
+        if info.model.is_some_and(|m| m.two_tools) {
+            match cutter.query_tool(2) {
+                Ok(t) => println!("tool 2:   {t:?}"),
+                Err(e) => println!("tool 2:   error ({e})"),
+            }
+        }
     }
     Ok(())
 }
@@ -447,6 +489,31 @@ fn send(
         bail!("no matching lines in {}; check the objects' cut actions", file.display());
     }
     let pen = matches!(lines, LinesArg::Sketch);
+    let (kind, index) = to.split_once(':').map_or((to, None), |(k, v)| (k, v.parse().ok()));
+    let usb_info = if kind == "usb" {
+        let devs = ss_device::enumerate()?;
+        let i = index.unwrap_or(0);
+        let Some(info) = devs.get(i).cloned() else {
+            if devs.is_empty() {
+                bail!("no cutter found; use `--to virtual` or `--to file` to test without hardware");
+            }
+            bail!("no cutter #{i}; `ss-cli devices` lists {}", devs.len());
+        };
+        if let Some(m) = info.model
+            && doc.page.width_mm > m.width_mm + 0.5
+        {
+            bail!("the page is wider than the {} can cut ({:.0} mm)", m.name, m.width_mm);
+        }
+        Some(info)
+    } else {
+        None
+    };
+
+    let protocol = usb_info
+        .as_ref()
+        .and_then(|info| info.model)
+        .map_or(ss_gpgl::Protocol::Classic, |m| m.gpgl_protocol());
+
     let settings = JobSettings {
         media_mm: (doc.page.width_mm, doc.page.height_mm),
         tool: ToolSettings {
@@ -469,6 +536,7 @@ fn send(
         optimize_order: !no_optimize,
         perforation: if matches!(lines, LinesArg::Perforate) { perforation.or(Some(Perforation { cut_mm: 2.0, gap_mm: 1.0 })) } else { None },
         registration,
+        protocol,
         ..JobSettings::default()
     };
     let job = ss_gpgl::encode(&paths, &settings).map_err(|e| anyhow::anyhow!(e.to_string()))?;
@@ -480,7 +548,6 @@ fn send(
         return Ok(());
     }
 
-    let (kind, index) = to.split_once(':').map_or((to, None), |(k, v)| (k, v.parse().ok()));
     match kind {
         "virtual" => {
             let (vc, handle) = VirtualCutter::new();
@@ -498,21 +565,9 @@ fn send(
             println!("wrote {}", path.display());
         }
         "usb" => {
-            let devs = ss_device::enumerate()?;
-            let i = index.unwrap_or(0);
-            let Some(info) = devs.get(i) else {
-                if devs.is_empty() {
-                    bail!("no cutter found; use `--to virtual` or `--to file` to test without hardware");
-                }
-                bail!("no cutter #{i}; `ss-cli devices` lists {}", devs.len());
-            };
-            if let Some(m) = info.model
-                && doc.page.width_mm > m.width_mm + 0.5
-            {
-                bail!("the page is wider than the {} can cut ({:.0} mm)", m.name, m.width_mm);
-            }
+            let info = usb_info.expect("resolved above");
             println!("sending to {} (Ctrl-C to stop between chunks)", info.name());
-            let t = UsbTransport::open(info).with_context(|| format!("cannot open {}", info.name()))?;
+            let t = UsbTransport::open(&info).with_context(|| format!("cannot open {}", info.name()))?;
             run(spawn_cut_job(t, job, RunOptions::default()))?;
         }
         other => bail!("unknown target {other:?}; expected usb, usb:N, virtual or file"),
@@ -553,6 +608,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.cmd {
         Cmd::Devices => devices(),
+        Cmd::Probe { index } => probe(index),
         Cmd::Inspect { files, json } => inspect(&files, json),
         Cmd::Convert { input, output } => convert(&input, &output),
         Cmd::Batch { dir, to, out, recursive, overwrite } => batch(&dir, to, out.as_deref(), recursive, overwrite),

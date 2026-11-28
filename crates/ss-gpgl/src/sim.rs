@@ -86,8 +86,10 @@ impl Simulation {
         let bad = |s: &mut Self| s.errors.push(c.to_string());
         let first_u32 = |args: &str| numbers(args).and_then(|v| v.first().map(|f| *f as u32));
         // Longest prefixes first.
-        const PREFIXES: [&str; 21] =
-            ["FN", "FU", "FC", "FY", "FX", "FM", "FO", "FE", "FF", "FG", "TB", "TC", "BZ", "J", "M", "D", "H", "!", "&", "\\", "Z"];
+        const PREFIXES: [&str; 27] = [
+            "FN", "FU", "FC", "FY", "FX", "FM", "FO", "FE", "FF", "FG", "TB", "TC", "TG", "TJ", "TF", "TI", "TO", "BZ", "J", "L", "M", "D",
+            "H", "!", "&", "\\", "Z",
+        ];
         let Some(p) = PREFIXES.iter().find(|p| c.starts_with(**p)) else {
             self.unknown.push(c.to_string());
             return;
@@ -141,7 +143,11 @@ impl Simulation {
                 Some(v) => self.blade_offset = Some(v),
                 None => bad(self),
             },
-            "TC" => match first_u32(args) {
+            "TC" | "TJ" => match first_u32(args) {
+                Some(v) => self.blade_depth = Some(v),
+                None => bad(self),
+            },
+            "TF" => match first_u32(args) {
                 Some(v) => self.blade_depth = Some(v),
                 None => bad(self),
             },
@@ -170,7 +176,7 @@ impl Simulation {
                 Some([123.0 | 23.0 | 51.0 | 53.0, ..]) | None => bad(self),
                 Some(_) => {}
             },
-            "FN" | "&" | "\\" | "Z" | "FM" | "FO" | "FE" | "FF" | "FG" => {
+            "FN" | "&" | "\\" | "Z" | "FM" | "FO" | "FE" | "FF" | "FG" | "TG" | "TI" | "TO" | "L" => {
                 if numbers(args).is_none() {
                     bad(self);
                 }

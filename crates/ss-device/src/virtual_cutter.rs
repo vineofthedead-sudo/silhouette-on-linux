@@ -22,8 +22,14 @@ pub(crate) struct QueryScanner {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Query {
     Status,
-    ToolSetup,
+    Wakeup,
+    ToolSetup1,
+    ToolSetup2,
     Firmware,
+    Ti,
+    To,
+    Tb71,
+    Fa,
     Initialize,
     /// A registration mark search; unlike the others it is also part of the job.
     Registration,
@@ -39,7 +45,9 @@ impl QueryScanner {
                 self.after_esc = false;
                 match b {
                     0x05 => queries.push(Query::Status),
-                    0x15 => queries.push(Query::ToolSetup),
+                    0x11 => queries.push(Query::Wakeup),
+                    0x15 => queries.push(Query::ToolSetup1),
+                    0x16 => queries.push(Query::ToolSetup2),
                     0x04 => queries.push(Query::Initialize),
                     _ => {}
                 }
@@ -50,6 +58,14 @@ impl QueryScanner {
                 if b == ETX {
                     if self.command == b"FG\x03" {
                         queries.push(Query::Firmware);
+                    } else if self.command == b"TI\x03" {
+                        queries.push(Query::Ti);
+                    } else if self.command == b"TO\x03" {
+                        queries.push(Query::To);
+                    } else if self.command == b"TB71\x03" {
+                        queries.push(Query::Tb71);
+                    } else if self.command == b"FA\x03" {
+                        queries.push(Query::Fa);
                     } else {
                         if self.command.starts_with(b"TB123,") || self.command.starts_with(b"TB23,") {
                             queries.push(Query::Registration);
@@ -74,6 +90,9 @@ struct State {
     accept_limit: Option<usize>,
     stalled: bool,
     initialized: u32,
+    firmware: Option<String>,
+    tool1_reply: Option<Vec<u8>>,
+    tool2_reply: Option<Vec<u8>>,
     /// `None` answers registration with success; `Some(None)` never answers.
     registration_reply: Option<Option<Vec<u8>>>,
 }
@@ -126,6 +145,21 @@ impl VirtualHandle {
     pub fn set_stalled(&self, stalled: bool) {
         self.lock().stalled = stalled;
     }
+
+    /// Sets the firmware string returned by `FG` and `ESC 0x11` (without trailing ETX).
+    pub fn set_firmware(&self, fw: impl Into<String>) {
+        self.lock().firmware = Some(fw.into());
+    }
+
+    /// Sets the raw reply (including ETX) for `ESC 0x15` (holder 1) or `ESC 0x16` (holder 2).
+    pub fn set_tool_reply(&self, holder: u8, reply: Vec<u8>) {
+        let mut s = self.lock();
+        if holder == 2 {
+            s.tool2_reply = Some(reply);
+        } else {
+            s.tool1_reply = Some(reply);
+        }
+    }
 }
 
 pub struct VirtualCutter {
@@ -143,7 +177,8 @@ impl Transport for VirtualCutter {
     fn write(&mut self, data: &[u8], timeout: Duration) -> Result<usize, DeviceError> {
         let mut s = self.handle.lock();
         // Control sequences always get through; only job data is subject to stalls and limits.
-        let is_control = data.first() == Some(&ESC) && data.len() == 2 || data == b"FG\x03";
+        let is_control = (data.first() == Some(&ESC) && data.len() == 2)
+            || matches!(data, b"FG\x03" | b"TI\x03" | b"TO\x03" | b"TB71\x03" | b"FA\x03");
         if s.stalled && !is_control {
             drop(s);
             std::thread::sleep(timeout.min(Duration::from_millis(5)));
@@ -153,32 +188,38 @@ impl Transport for VirtualCutter {
         let (queries, job) = s.scanner.feed(&data[..n]);
         s.job.extend(job);
         for q in queries {
-            let reply: &[u8] = match q {
-                Query::Status if s.unloaded => b"2\x03",
+            match q {
+                Query::Status if s.unloaded => s.replies.extend(b"2\x03"),
                 Query::Status if s.busy_polls > 0 => {
                     s.busy_polls -= 1;
-                    b"1\x03"
+                    s.replies.extend(b"1\x03");
                 }
-                Query::Status => b"0\x03",
-                Query::Firmware => b" VIRTUAL 1.0\x03",
-                Query::ToolSetup => b"none\x03",
+                Query::Status => s.replies.extend(b"0\x03"),
+                Query::Firmware | Query::Wakeup => {
+                    let fw = s.firmware.clone().unwrap_or_else(|| " VIRTUAL 1.0".into());
+                    s.replies.extend(fw.as_bytes());
+                    s.replies.push_back(ETX);
+                }
+                Query::ToolSetup1 => {
+                    let reply = s.tool1_reply.clone().unwrap_or_else(|| b" 2, 0\x03".to_vec());
+                    s.replies.extend(reply);
+                }
+                Query::ToolSetup2 => {
+                    let reply = s.tool2_reply.clone().unwrap_or_else(|| b"   0\x03".to_vec());
+                    s.replies.extend(reply);
+                }
+                Query::Ti => s.replies.push_back(ETX),
+                Query::To => s.replies.extend(b"0\x03"),
+                Query::Tb71 | Query::Fa => s.replies.extend(b"    0,    0\x03"),
                 Query::Initialize => {
                     s.initialized += 1;
-                    continue;
                 }
                 Query::Registration => match s.registration_reply.clone() {
-                    None => {
-                        s.replies.extend(REGISTRATION_OK);
-                        continue;
-                    }
-                    Some(Some(r)) => {
-                        s.replies.extend(r);
-                        continue;
-                    }
-                    Some(None) => continue,
+                    None => s.replies.extend(REGISTRATION_OK),
+                    Some(Some(r)) => s.replies.extend(r),
+                    Some(None) => {}
                 },
-            };
-            s.replies.extend(reply);
+            }
         }
         Ok(n)
     }
@@ -215,5 +256,22 @@ mod tests {
         }
         assert_eq!(queries, vec![Query::Initialize, Query::Status, Query::Firmware, Query::Registration]);
         assert_eq!(job, b"FN0\x03F\x03M1,2\x03TB123,1,2,3,4\x03");
+    }
+
+    #[test]
+    fn cutter_wakeup_and_tool_queries_on_virtual_cutter() {
+        let (vc, h) = VirtualCutter::new();
+        h.set_firmware("CAMEO 4 V1.20    ");
+        h.set_tool_reply(1, b" 2, 0\x03".to_vec());
+        h.set_tool_reply(2, b"   0\x03".to_vec());
+
+        let mut cutter = crate::Cutter::new(vc);
+        let fw = cutter.wakeup().unwrap();
+        assert_eq!(fw.as_deref(), Some("CAMEO 4 V1.20"));
+        assert_eq!(cutter.query_tool(1).unwrap(), ss_gpgl::DetectedTool::AutoBlade);
+        assert_eq!(cutter.query_tool(2).unwrap(), ss_gpgl::DetectedTool::Empty);
+
+        h.set_tool_reply(1, b" 1, 0\x03".to_vec());
+        assert_eq!(cutter.query_tool(1).unwrap(), ss_gpgl::DetectedTool::ManualBlade);
     }
 }

@@ -33,8 +33,12 @@ impl Transport for FileTransport {
         for q in queries {
             match q {
                 Query::Status => self.replies.extend_from_slice(b"0\x03"),
-                Query::Firmware => self.replies.extend_from_slice(b" FILE\x03"),
-                Query::ToolSetup => self.replies.extend_from_slice(b"none\x03"),
+                Query::Firmware | Query::Wakeup => self.replies.extend_from_slice(b" FILE\x03"),
+                Query::ToolSetup1 => self.replies.extend_from_slice(b" 0, 0\x03"),
+                Query::ToolSetup2 => self.replies.extend_from_slice(b"   0\x03"),
+                Query::Ti => self.replies.push(0x03),
+                Query::To => self.replies.extend_from_slice(b"0\x03"),
+                Query::Tb71 | Query::Fa => self.replies.extend_from_slice(b"    0,    0\x03"),
                 Query::Initialize => {}
                 Query::Registration => self.replies.extend_from_slice(crate::virtual_cutter::REGISTRATION_OK),
             }

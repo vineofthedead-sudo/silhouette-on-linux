@@ -14,9 +14,9 @@ tool rail, collapsible right dock and mocked Send panel.
 | `.studio3` / `.studio` reading | Stable | 178 real-world and 39 stock files parsed; gradients, patterns, strokes, and thumbnail fidelity verified against embedded previews |
 | `.craft` read/write | Working | Round-trip tests; checked against the companion project's own code |
 | SVG / DXF | Stable | Round-trip tests |
-| GPGL encoding | Stable in tests | Golden tests replayed through the interpreter |
+| GPGL encoding | Stable in tests | Golden tests replayed through the interpreter; Era 3 Cameo 4 AutoBlade protocol calibrated from USB capture |
 | Print & Cut | **Experimental** | Golden tests against inkscape-silhouette values; virtual cutter only |
-| USB cutting | **Untested on hardware; hidden in the GUI** | Job runner tests against the virtual cutter; the GUI Send panel is a mock for now |
+| USB cutting | **Cameo 1 & 2 verified live; Cameo 4 calibrated** | Cameo 1 (`0b4d:1121`) and Cameo 2 (`0b4d:112b`) verified live on Linux (`usblp` auto-detach); Cameo 4 (`0b4d:1137`) Era 3 handshake, tool detection, and AutoBlade GPGL calibrated and virtual-cutter tested; GUI Send output remains mocked/gated for safety |
 
 ## V5 UI and tool states
 
@@ -86,11 +86,14 @@ The right dock is a set of collapsible panels: Tool Options (contextual for Edit
 
 ## Hardware
 
-No physical cutter has been available during development. Everything that
-talks to a machine has only been run against the virtual cutter, which
-replays GPGL as a cutter would and answers status and registration queries.
-Reports from people who try it on a real machine (with scrap material and low
-force; see [DISCLAIMER.md](DISCLAIMER.md)) are very welcome.
+Cameo 1 (`0x0b4d:0x1121`, firmware `CAMEO V1.10`) and Cameo 2 (`0x0b4d:0x112b`,
+firmware `CAMEO 2 V1.20`) have been verified live on Linux over USB (`Class=7`
+`usblp` auto-detach, Bulk OUT `0x01` / IN `0x82`). Cameo 4 (`0x0b4d:0x1137`,
+firmware `CAMEO 4 V1.20`) Era 3 wakeup (`\x1b\x11`), optical tool queries
+(`\x1b\x15` / `\x1b\x16`), and AutoBlade GPGL (`TG1`, `TJ`, `TF`, `L0`) have
+been calibrated from USB captures and verified against the virtual cutter and
+`ss-cli probe`. Always test first on scrap material with low force; see
+[DISCLAIMER.md](DISCLAIMER.md).
 
 ## GUI checks
 

@@ -12,10 +12,10 @@ pub mod virtual_cutter;
 
 use std::time::{Duration, Instant};
 
-use ss_gpgl::{ETX, Status, control};
+use ss_gpgl::{DetectedTool, ETX, Status, control};
 
 pub use file::FileTransport;
-pub use models::{Model, find_model};
+pub use models::{Model, ProtocolEra, find_model};
 pub use runner::{JobEvent, JobHandle, RunOptions, spawn_cut_job, spawn_job};
 pub use usb::{UsbDeviceInfo, UsbTransport, enumerate};
 pub use virtual_cutter::{VirtualCutter, VirtualHandle};
@@ -177,6 +177,17 @@ impl<T: Transport> Cutter<T> {
 
     pub fn firmware(&mut self) -> Result<Option<String>, DeviceError> {
         Ok(ss_gpgl::parse_firmware(&self.query(control::FIRMWARE, Duration::from_secs(5))?))
+    }
+
+    /// Wakeup / model identification query (`ESC 0x11`).
+    pub fn wakeup(&mut self) -> Result<Option<String>, DeviceError> {
+        Ok(ss_gpgl::parse_firmware(&self.query(control::WAKEUP, Duration::from_secs(5))?))
+    }
+
+    /// Polls the optical carriage tool sensor (`ESC 0x15` for holder 1, `ESC 0x16` for holder 2).
+    pub fn query_tool(&mut self, holder: u8) -> Result<DetectedTool, DeviceError> {
+        let cmd = if holder == 2 { control::TOOL_QUERY_2 } else { control::TOOL_QUERY_1 };
+        Ok(ss_gpgl::parse_tool_sensor(&self.query(cmd, Duration::from_secs(5))?))
     }
 
     /// Installed tools on Cameo 4 class machines.

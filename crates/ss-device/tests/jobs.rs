@@ -140,3 +140,25 @@ fn file_transport_writes_only_the_job() {
     assert_eq!(std::fs::read(&path).unwrap(), job());
     std::fs::remove_file(path).unwrap();
 }
+
+#[test]
+fn era3_cameo4_job_round_trip_on_virtual_cutter() {
+    let paths = [Rect::new(10.0, 10.0, 40.0, 30.0).to_path(0.0)];
+    let settings = JobSettings {
+        protocol: ss_gpgl::Protocol::Era3,
+        tool: ss_gpgl::ToolSettings { blade_depth: Some(3), force: 30, speed: 4, ..ss_gpgl::ToolSettings::default() },
+        ..JobSettings::default()
+    };
+    let encoded = encode(&paths, &settings).unwrap();
+
+    let (vc, h) = VirtualCutter::new();
+    h.set_busy_polls(0);
+    h.set_firmware("CAMEO 4 V1.20    ");
+    let events = ss_device::spawn_cut_job(vc, encoded.clone(), fast()).wait();
+    assert_eq!(events.last(), Some(&JobEvent::Finished));
+    assert_eq!(h.received(), encoded.bytes);
+    let sim = h.simulation();
+    assert_eq!(sim.strokes.len(), 1);
+    assert_eq!(sim.blade_depth, Some(3));
+    assert!(sim.errors.is_empty() && sim.homed);
+}

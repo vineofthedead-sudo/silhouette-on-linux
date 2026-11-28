@@ -176,6 +176,9 @@ mod tests {
         assert_eq!(pick_endpoints(&eps), Some((1, 0x02, 0x84, 512)));
         assert_eq!(pick_endpoints(&[ep(0, 0x01, true, 64)]), None);
         assert_eq!(pick_endpoints(&[ep(0, 0x01, true, 64), ep(0, 0x82, true, 64)]), Some((0, 0x01, 0x82, 64)));
+        // Cameo 1 / 2 / 4 Class=7 Printer interface: Bulk OUT 0x01, Bulk IN 0x82, Interrupt IN 0x83 ignored.
+        let cameo1 = [ep(0, 0x01, true, 64), ep(0, 0x82, true, 64), ep(0, 0x83, false, 8)];
+        assert_eq!(pick_endpoints(&cameo1), Some((0, 0x01, 0x82, 64)));
     }
 
     #[test]

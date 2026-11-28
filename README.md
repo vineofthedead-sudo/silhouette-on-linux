@@ -40,9 +40,9 @@ protocol — no Windows, no Wine, no virtual machine.
 | SVG / SVGZ import & export | ✅ Implemented | Including gzip and UTF-8/UTF-16 variants, gradients, patterns, dashed strokes, embedded images, background and registration marks |
 | DXF import & export | ✅ Implemented | |
 | Native project format (`.ssrs`) | ✅ Implemented | Lossless JSON format, versioned |
-| GPGL job generation | ✅ Implemented | Force, speed, passes, blade depth (`TC`), blade offset, overcut, perforation dashes, media clipping, multi-stage tool/pause sequences, cut-order optimisation; images are never cut |
-| USB cutter communication | 🚧 Partial / experimental | Full libusb transport + job runner; model database from Craft Robo through Cameo 5 Alpha. **Not yet validated on real hardware** |
-| Dual-carriage (tool holder 2) | 🚧 Partial / experimental | GPGL sequences implemented, unverified on hardware |
+| GPGL job generation | ✅ Implemented | Force, speed, passes, blade depth (`TC` / Era 3 `TJ`/`TF`), blade offset, overcut, perforation dashes, media clipping, multi-stage tool/pause sequences, cut-order optimisation; images are never cut |
+| USB cutter communication | 🚧 Partial / verified on Cameo 1 & 2 | Full libusb transport (`usblp` auto-detach) + job runner; Cameo 1 (`0b4d:1121`) and Cameo 2 (`0b4d:112b`) verified live on Linux; Cameo 4 (`0b4d:1137`) Era 3 wakeup, tool detection, and AutoBlade GPGL calibrated |
+| Dual-carriage (tool holder 2) | 🚧 Partial / experimental | GPGL sequences and Era 3 tool queries implemented; unverified on live cut |
 | Print & Cut (registration marks) | 🚧 Partial / experimental | Type 1 marks on the canvas and in SVG export; GPGL mark search (automatic or manual) checked against inkscape-silhouette's values. **Not yet tested on a cutter** |
 | Printing | ❌ Not yet implemented | Export SVG (marks included) and print it from another program |
 | Bluetooth | ❌ Not yet implemented | |
@@ -50,7 +50,7 @@ protocol — no Windows, no Wine, no virtual machine.
 | Rhinestones | ❌ Not yet implemented | |
 | Design store / cloud library | ❌ Not planned | Local files only, by design |
 | Virtual cutter & tool-path preview | ✅ Implemented | Test jobs without hardware; simulated strokes shown on the canvas |
-| `ss-cli` batch tools | ✅ Implemented | `devices`, `inspect`, `convert`, `batch`, `fonts`, `text`, `send` |
+| `ss-cli` batch tools | ✅ Implemented | `devices`, `probe`, `inspect`, `convert`, `batch`, `fonts`, `text`, `send` |
 
 See [STATUS.md](STATUS.md) for what has been verified and how, and
 [ROADMAP.md](ROADMAP.md) for known limitations and the next milestones.

@@ -15,10 +15,10 @@ pub mod reply;
 pub mod sim;
 
 pub use job::{
-    EncodeError, EndAction, Job, JobSettings, JobStage, JobStats, OffMedia, Perforation, Registration, Tool, ToolSettings,
+    EncodeError, EndAction, Job, JobSettings, JobStage, JobStats, OffMedia, Perforation, Protocol, Registration, Tool, ToolSettings,
     cut_edge_paths, document_paths, encode, encode_stages,
 };
-pub use reply::{Status, parse_firmware, parse_registration, parse_status};
+pub use reply::{DetectedTool, Status, parse_firmware, parse_registration, parse_status, parse_tool_sensor};
 pub use sim::{SimRegistration, Simulation, simulate};
 
 /// Command terminator.
@@ -27,14 +27,24 @@ pub const ESC: u8 = 0x1b;
 /// Cutter units per millimetre.
 pub const UNITS_PER_MM: f64 = 20.0;
 
-/// Raw control sequences (no ETX).
+/// Raw control and query sequences.
 pub mod control {
     /// Initialise the device (*public*).
     pub const INITIALIZE: &[u8] = &[super::ESC, 0x04];
     /// Status poll; the reply is a digit plus ETX, see [`crate::parse_status`].
     pub const STATUS: &[u8] = &[super::ESC, 0x05];
-    /// Firmware version query; the reply looks like ` V3.00`.
+    /// Wakeup / model identification query (Cameo 4 returns `"CAMEO 4 V1.20    \x03"`).
+    pub const WAKEUP: &[u8] = &[super::ESC, 0x11];
+    /// Carriage 1 optical tool-sensor query (`" 0, 0\x03"` empty, `" 2, 0\x03"` AutoBlade).
+    pub const TOOL_QUERY_1: &[u8] = &[super::ESC, 0x15];
+    /// Carriage 2 optical tool-sensor query.
+    pub const TOOL_QUERY_2: &[u8] = &[super::ESC, 0x16];
+    /// Firmware version query; the reply looks like ` V3.00` or `CAMEO 4 V1.20`.
     pub const FIRMWARE: &[u8] = b"FG\x03";
+    pub const TI_QUERY: &[u8] = b"TI\x03";
+    pub const TO_QUERY: &[u8] = b"TO\x03";
+    pub const TB71_QUERY: &[u8] = b"TB71\x03";
+    pub const FA_QUERY: &[u8] = b"FA\x03";
 }
 
 /// Millimetres to cutter units.
